@@ -9,7 +9,7 @@ from pathlib import Path
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers, models
-from tensorflow.keras.applications import EfficientNetB3, ResNet50V2
+from tensorflow.keras.applications import ResNet50V2, MobileNetV2
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.callbacks import (
     ModelCheckpoint, EarlyStopping, ReduceLROnPlateau,
@@ -183,33 +183,42 @@ class ImageModelTrainer:
         print(f"   ✅ Validation samples: {self.val_generator.samples}")
         print(f"   ✅ Test samples: {self.test_generator.samples}")
     
-    def build_model(self, model_type='efficientnet'):
+    def build_model(self, model_type='mobilenet'):
         """Build CNN model with transfer learning"""
         print(f"\n🏗️ Building {model_type} model...")
         
-        # Input layer
-        inputs = keras.Input(shape=(self.img_height, self.img_width, 3))
+        # Clear any existing models
+        tf.keras.backend.clear_session()
         
-        # Choose base model
-        if model_type == 'efficientnet':
-            base_model = EfficientNetB3(
+        if model_type == 'mobilenet':
+            # Using MobileNetV2 which is lighter and works well
+            base_model = MobileNetV2(
+                input_shape=(self.img_height, self.img_width, 3),
                 include_top=False,
                 weights='imagenet',
-                input_tensor=inputs,
                 pooling='avg'
             )
             base_model.trainable = False  # Freeze base model initially
+            
         else:  # resnet
             base_model = ResNet50V2(
+                input_shape=(self.img_height, self.img_width, 3),
                 include_top=False,
                 weights='imagenet',
-                input_tensor=inputs,
                 pooling='avg'
             )
             base_model.trainable = False
         
+        # Build the model
+        inputs = keras.Input(shape=(self.img_height, self.img_width, 3))
+        
+        # Preprocessing layer for the specific model
+        x = tf.keras.applications.mobilenet_v2.preprocess_input(inputs) if model_type == 'mobilenet' else inputs
+        
+        # Base model
+        x = base_model(x, training=False)
+        
         # Add custom layers
-        x = base_model.output
         x = layers.Dense(256, activation='relu')(x)
         x = layers.BatchNormalization()(x)
         x = layers.Dropout(0.5)(x)
@@ -222,6 +231,9 @@ class ImageModelTrainer:
         
         # Create model
         self.model = models.Model(inputs, outputs)
+        
+        # Store base model reference for fine-tuning
+        self.base_model = base_model
         
         # Compile model
         self.model.compile(
@@ -266,11 +278,17 @@ class ImageModelTrainer:
             )
         ]
         
+        # Calculate steps
+        steps_per_epoch = self.train_generator.samples // self.batch_size
+        validation_steps = self.val_generator.samples // self.batch_size
+        
         # Train model
         self.history = self.model.fit(
             self.train_generator,
             epochs=epochs,
+            steps_per_epoch=steps_per_epoch,
             validation_data=self.val_generator,
+            validation_steps=validation_steps,
             callbacks=callbacks,
             verbose=1
         )
@@ -281,10 +299,15 @@ class ImageModelTrainer:
         """Fine-tune the model by unfreezing some layers"""
         print("\n🎯 Fine-tuning model...")
         
-        # Unfreeze the top layers of the base model
-        for layer in self.model.layers[-20:]:
-            if not isinstance(layer, layers.BatchNormalization):
-                layer.trainable = True
+        # Unfreeze the top 20 layers of the base model
+        self.base_model.trainable = True
+        
+        # Fine-tune from this layer onwards
+        fine_tune_at = len(self.base_model.layers) - 20
+        
+        # Freeze all the layers before fine_tune_at
+        for layer in self.base_model.layers[:fine_tune_at]:
+            layer.trainable = False
         
         # Recompile with lower learning rate
         self.model.compile(
@@ -294,10 +317,15 @@ class ImageModelTrainer:
         )
         
         # Continue training
+        steps_per_epoch = self.train_generator.samples // self.batch_size
+        validation_steps = self.val_generator.samples // self.batch_size
+        
         history_fine = self.model.fit(
             self.train_generator,
             epochs=epochs,
+            steps_per_epoch=steps_per_epoch,
             validation_data=self.val_generator,
+            validation_steps=validation_steps,
             verbose=1
         )
         
@@ -402,7 +430,8 @@ class ImageModelTrainer:
             'batch_size': self.batch_size,
             'total_epochs': len(self.history.history['loss']),
             'final_accuracy': float(self.history.history['val_accuracy'][-1]),
-            'test_accuracy': self.results['test_accuracy']
+            'test_accuracy': self.results['test_accuracy'],
+            'model_type': 'MobileNetV2'
         }
         
         with open(self.model_path / 'image_model_metadata.json', 'w') as f:
@@ -422,8 +451,8 @@ def main():
     # Prepare data
     trainer.prepare_data_generators()
     
-    # Build and train model
-    trainer.build_model('efficientnet')
+    # Build and train model (using MobileNetV2 instead of EfficientNet)
+    trainer.build_model('mobilenet')
     trainer.train_model(epochs=10)  # Reduced epochs for faster training
     trainer.fine_tune_model(epochs=5)
     
