@@ -282,4 +282,124 @@ class FusionModel:
         approaches = list(results_df.index)
         accuracies = results_df['accuracy'].values
         
-        bars1 = axes[0].bar(range(len(
+        bars1 = axes[0].bar(range(len(approaches)), accuracies, color='steelblue')
+        axes[0].set_xticks(range(len(approaches)))
+        axes[0].set_xticklabels(approaches, rotation=45, ha='right')
+        axes[0].set_ylabel('Accuracy')
+        axes[0].set_title('Accuracy Comparison')
+        axes[0].set_ylim([0.7, 1.0])
+        
+        # Add value labels on bars
+        for bar in bars1:
+            height = bar.get_height()
+            axes[0].text(bar.get_x() + bar.get_width()/2., height,
+                        f'{height:.3f}', ha='center', va='bottom')
+        
+        # AUC comparison
+        aucs = results_df['auc'].values
+        bars2 = axes[1].bar(range(len(approaches)), aucs, color='coral')
+        axes[1].set_xticks(range(len(approaches)))
+        axes[1].set_xticklabels(approaches, rotation=45, ha='right')
+        axes[1].set_ylabel('AUC-ROC')
+        axes[1].set_title('AUC-ROC Comparison')
+        axes[1].set_ylim([0.7, 1.0])
+        
+        # Add value labels
+        for bar in bars2:
+            height = bar.get_height()
+            axes[1].text(bar.get_x() + bar.get_width()/2., height,
+                        f'{height:.3f}', ha='center', va='bottom')
+        
+        plt.tight_layout()
+        plt.savefig('docs/fusion_comparison.png')
+        plt.show()
+        
+        # Save results
+        self.results = results
+        results_df.to_csv(self.model_path / 'fusion_results.csv')
+        
+        with open(self.model_path / 'fusion_results.json', 'w') as f:
+            json.dump(results, f, indent=2)
+        
+        print("\n" + "="*60)
+        print(f"🏆 BEST APPROACH: {results_df.index[0]}")
+        print(f"   Accuracy: {results_df.iloc[0]['accuracy']:.4f}")
+        print(f"   AUC-ROC:  {results_df.iloc[0]['auc']:.4f}")
+        print("="*60)
+        
+        return results_df
+    
+    def create_optimized_fusion(self, results_df):
+        """Create the final optimized fusion model"""
+        print("\n🎯 Creating optimized fusion model...")
+        
+        best_approach = results_df.index[0]
+        
+        if best_approach == 'Neural Fusion':
+            # Save the neural fusion model
+            self.fusion_model.save(self.model_path / 'fusion_model.h5')
+            print("   ✅ Neural fusion model saved")
+            
+        elif best_approach in ['Simple Average', 'Weighted Average', 'Maximum']:
+            # Create a simple fusion function
+            fusion_config = {
+                'method': best_approach,
+                'clinical_weight': 0.6 if best_approach == 'Weighted Average' else 0.5,
+                'image_weight': 0.4 if best_approach == 'Weighted Average' else 0.5
+            }
+            
+            with open(self.model_path / 'fusion_config.json', 'w') as f:
+                json.dump(fusion_config, f, indent=2)
+            
+            print(f"   ✅ {best_approach} fusion configuration saved")
+    
+    def save_fusion_pipeline(self):
+        """Save the complete fusion pipeline configuration"""
+        print("\n💾 Saving fusion pipeline...")
+        
+        pipeline_config = {
+            'clinical_model': 'clinical_ensemble.pkl',
+            'image_model': 'retina_image_model.h5',
+            'fusion_model': 'fusion_model.h5' if hasattr(self, 'fusion_model') else 'fusion_config.json',
+            'scaler': 'clinical_scaler.pkl',
+            'best_accuracy': max([r['accuracy'] for r in self.results.values()]),
+            'best_auc': max([r['auc'] for r in self.results.values()]),
+            'approach_rankings': {k: v for k, v in self.results.items()}
+        }
+        
+        with open(self.model_path / 'pipeline_config.json', 'w') as f:
+            json.dump(pipeline_config, f, indent=2)
+        
+        print("   ✅ Pipeline configuration saved")
+
+def main():
+    print("🔬 Multi-Modal Fusion Training Pipeline")
+    print("="*50)
+    
+    fusion = FusionModel()
+    
+    # Load pre-trained models
+    fusion.load_pretrained_models()
+    
+    # Prepare fusion data
+    fusion.prepare_fusion_data()
+    
+    # Build and train neural fusion
+    fusion.build_neural_fusion_model()
+    fusion.train_fusion_model(epochs=30)
+    
+    # Evaluate all approaches
+    results_df = fusion.evaluate_all_approaches()
+    
+    # Create optimized fusion
+    fusion.create_optimized_fusion(results_df)
+    
+    # Save pipeline
+    fusion.save_fusion_pipeline()
+    
+    print("\n" + "="*50)
+    print("✨ Fusion model training complete!")
+    print("\nNext step: Run 'python backend/app/main.py' to start the API")
+
+if __name__ == "__main__":
+    main()
