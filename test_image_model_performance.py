@@ -1,73 +1,74 @@
 """
-Real-time monitoring dashboard using Streamlit
+Production testing suite for your DR detection system
 """
-import streamlit as st
-import pandas as pd
-import plotly.express as px
-from datetime import datetime, timedelta
+import numpy as np
+import tensorflow as tf
+from pathlib import Path
 import json
+import time
 
-st.set_page_config(page_title="DR Detection Monitoring", layout="wide")
-
-st.title("🏥 Diabetic Retinopathy Detection - Production Monitoring")
-
-# Metrics Row
-col1, col2, col3, col4 = st.columns(4)
-
-with col1:
-    st.metric("Total Predictions", "12,543", "+234 today")
+class ProductionModelTester:
+    def __init__(self):
+        self.model_path = Path("ml-pipeline/models")
+        
+    def test_inference_speed(self, model_path):
+        """Test if model meets latency requirements"""
+        model = tf.keras.models.load_model(model_path)
+        
+        # Test batch
+        test_batch = np.random.random((1, 224, 224, 3))
+        
+        # Warmup
+        _ = model.predict(test_batch, verbose=0)
+        
+        # Time inference
+        times = []
+        for _ in range(100):
+            start = time.time()
+            _ = model.predict(test_batch, verbose=0)
+            times.append(time.time() - start)
+        
+        avg_time = np.mean(times) * 1000  # Convert to ms
+        
+        assert avg_time < 200, f"Inference too slow: {avg_time:.2f}ms"
+        print(f"✅ Inference speed: {avg_time:.2f}ms (< 200ms required)")
+        
+        return avg_time
     
-with col2:
-    st.metric("Avg Response Time", "145ms", "-12ms")
-    
-with col3:
-    st.metric("Model Accuracy", "87.3%", "+2.1%")
-    
-with col4:
-    st.metric("System Uptime", "99.9%", "")
+    def test_model_consistency(self, model_path):
+        """Test if model gives consistent predictions"""
+        model = tf.keras.models.load_model(model_path)
+        
+        # Same image, multiple predictions
+        test_image = np.random.random((1, 224, 224, 3))
+        
+        predictions = []
+        for _ in range(10):
+            pred = model.predict(test_image, verbose=0)
+            predictions.append(pred[0])
+        
+        # Check variance
+        variance = np.var(predictions)
+        assert variance < 0.001, f"Predictions inconsistent: variance={variance}"
+        print(f"✅ Model consistency: variance={variance:.6f}")
+        
+    def test_edge_cases(self, model_path):
+        """Test model with edge cases"""
+        model = tf.keras.models.load_model(model_path)
+        
+        test_cases = {
+            "black_image": np.zeros((1, 224, 224, 3)),
+            "white_image": np.ones((1, 224, 224, 3)),
+            "noisy_image": np.random.random((1, 224, 224, 3))
+        }
+        
+        for case_name, test_image in test_cases.items():
+            pred = model.predict(test_image, verbose=0)
+            assert 0 <= pred[0][0] <= 1, f"Invalid prediction for {case_name}"
+            print(f"✅ {case_name}: {pred[0][0]:.4f}")
 
-# Load prediction logs
-@st.cache_data
-def load_predictions():
-    predictions = []
-    try:
-        with open("logs/predictions.jsonl", "r") as f:
-            for line in f:
-                predictions.append(json.loads(line))
-    except:
-        # Generate sample data
-        predictions = [
-            {"timestamp": datetime.now().isoformat(), "risk_level": "Low", "confidence": 0.92},
-            {"timestamp": datetime.now().isoformat(), "risk_level": "Medium", "confidence": 0.85},
-        ]
-    return pd.DataFrame(predictions)
-
-df = load_predictions()
-
-# Risk Distribution
-st.subheader("Risk Level Distribution")
-if not df.empty:
-    risk_counts = df["risk_level"].value_counts()
-    fig = px.pie(values=risk_counts.values, names=risk_counts.index, 
-                 color_discrete_map={"Low": "green", "Medium": "yellow", "High": "red"})
-    st.plotly_chart(fig)
-
-# Time Series
-st.subheader("Predictions Over Time")
-# Add time series chart here
-
-# Model Performance Comparison
-st.subheader("Model A/B Test Results")
-col1, col2 = st.columns(2)
-
-with col1:
-    st.info("**Stable Model (80% traffic)**")
-    st.metric("Accuracy", "87.3%")
-    st.metric("Avg Confidence", "0.89")
-    
-with col2:
-    st.success("**Experimental Model (20% traffic)**")
-    st.metric("Accuracy", "89.1%")
-    st.metric("Avg Confidence", "0.91")
-
-# Run with: streamlit run monitoring/dashboard.py
+# Run tests
+tester = ProductionModelTester()
+tester.test_inference_speed("ml-pipeline/models/stable_dr_ensemble.keras")
+tester.test_model_consistency("ml-pipeline/models/stable_dr_ensemble.keras")
+tester.test_edge_cases("ml-pipeline/models/stable_dr_ensemble.keras")
