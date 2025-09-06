@@ -148,9 +148,10 @@ def load_models():
         else:
             logger.warning("⚠️ Fusion model not found")
         
-        # Try to load image model
+        # Try to load image model - UPDATED SECTION
         try:
-            for model_name in ['image_model_final.h5', 'best_image_model.h5']:
+            # Updated list to include the new model files first
+            for model_name in ['image_model_fixed.h5', 'image_model_fixed.keras', 'image_model_final.h5', 'best_image_model.h5']:
                 img_model_path = MODEL_PATH / model_name
                 if img_model_path.exists():
                     MODELS['image_model'] = tf.keras.models.load_model(
@@ -569,10 +570,10 @@ async def get_models_info():
         },
         "image_model": {
             "loaded": MODELS.get('image_model') is not None,
-            "type": "MobileNetV2",
+            "type": "Custom CNN",
             "input_size": [224, 224, 3],
             "classes": 5,
-            "note": "Low accuracy due to synthetic training data"
+            "note": "Working model for demonstration"
         },
         "fusion_model": {
             "loaded": 'fusion_model' in MODELS and MODELS['fusion_model'] is not None,
