@@ -15,17 +15,15 @@ warnings.filterwarnings('ignore')
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
-from tensorflow.keras.applications import EfficientNetB0, ResNet50V2
+from tensorflow.keras.applications import EfficientNetB0, ResNet50V2, MobileNetV2
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.callbacks import (
-    ModelCheckpoint, EarlyStopping, ReduceLROnPlateau,
-    TensorBoard
+    ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 )
 from tensorflow.keras.optimizers import Adam
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score,
-    f1_score, roc_auc_score, confusion_matrix,
-    classification_report
+    f1_score, confusion_matrix
 )
 from sklearn.utils.class_weight import compute_class_weight
 
@@ -43,7 +41,7 @@ class ImageModelTrainer:
         self.model_path.mkdir(exist_ok=True)
         
         # Image parameters
-        self.img_size = (224, 224)  # EfficientNet input size
+        self.img_size = (224, 224)  # Standard input size
         self.batch_size = 32
         self.num_classes = 5  # DR grades 0-4
         
@@ -53,7 +51,7 @@ class ImageModelTrainer:
         
     def create_synthetic_images(self):
         """
-        Create synthetic images for training
+        Create synthetic RGB images for training
         In production, you'd load real retinal images
         """
         print("🖼️ Creating synthetic training images...")
@@ -76,8 +74,7 @@ class ImageModelTrainer:
                 grade_dir = split_dir / f'grade_{grade}'
                 grade_dir.mkdir(exist_ok=True)
                 
-                # Create a synthetic image (in production, load real image)
-                # For now, create a placeholder image with different patterns per grade
+                # Create a synthetic RGB image
                 img = self.create_synthetic_retina_image(grade)
                 
                 # Save image
@@ -88,42 +85,71 @@ class ImageModelTrainer:
     
     def create_synthetic_retina_image(self, grade):
         """
-        Create a synthetic retinal image based on DR grade
-        In production, this would be replaced with real image loading
+        Create a synthetic retinal RGB image based on DR grade
         """
-        # Create base circular pattern resembling retina
-        img = np.zeros((*self.img_size, 3), dtype=np.uint8)
+        # Create base circular pattern resembling retina (RGB)
+        img = np.zeros((*self.img_size, 3), dtype=np.float32)
         center = (self.img_size[0] // 2, self.img_size[1] // 2)
         
-        # Base retina color (reddish)
-        base_color = np.array([180 - grade * 20, 80 - grade * 10, 60])
+        # Create radial gradient for retina appearance
+        y, x = np.ogrid[:self.img_size[0], :self.img_size[1]]
+        dist_from_center = np.sqrt((x - center[0])**2 + (y - center[1])**2)
+        max_dist = np.sqrt(center[0]**2 + center[1]**2)
         
-        # Create circular gradient
-        for i in range(self.img_size[0]):
-            for j in range(self.img_size[1]):
-                dist = np.sqrt((i - center[0])**2 + (j - center[1])**2)
-                if dist < 100:
-                    intensity = 1.0 - (dist / 100)
-                    img[i, j] = base_color * intensity
+        # Base retina appearance (reddish circular pattern)
+        mask = dist_from_center <= 100
+        intensity = np.where(mask, 1.0 - (dist_from_center / 100), 0)
         
-        # Add noise to simulate vessels and features
-        noise = np.random.normal(0, 10 + grade * 5, img.shape)
-        img = np.clip(img + noise, 0, 255).astype(np.uint8)
+        # Create RGB channels with different patterns per grade
+        # Red channel - base retina
+        img[:, :, 0] = intensity * (0.7 - grade * 0.1)
+        # Green channel - slightly less
+        img[:, :, 1] = intensity * (0.3 - grade * 0.05)
+        # Blue channel - least
+        img[:, :, 2] = intensity * (0.2 - grade * 0.03)
         
-        # Add synthetic features based on grade
+        # Add synthetic blood vessels
+        np.random.seed(42 + grade)
+        num_vessels = 5 + grade
+        for _ in range(num_vessels):
+            # Create curved lines to simulate vessels
+            t = np.linspace(0, 2*np.pi, 100)
+            cx = center[0] + 50 * np.cos(t) * np.random.uniform(0.5, 1.5)
+            cy = center[1] + 50 * np.sin(t) * np.random.uniform(0.5, 1.5)
+            
+            for i in range(len(t)-1):
+                x1, y1 = int(cx[i]), int(cy[i])
+                if 0 <= x1 < self.img_size[0] and 0 <= y1 < self.img_size[1]:
+                    img[y1, x1] = [0.4, 0.1, 0.1]
+        
+        # Add grade-specific features
         if grade > 0:
-            # Simulate microaneurysms (small dots)
-            num_spots = grade * 3
+            # Add microaneurysms (small red dots)
+            num_spots = grade * 5
             for _ in range(num_spots):
-                x, y = np.random.randint(20, self.img_size[0]-20, 2)
-                img[x-2:x+2, y-2:y+2] = [200, 100, 100]
+                x = np.random.randint(20, self.img_size[0]-20)
+                y = np.random.randint(20, self.img_size[1]-20)
+                if mask[y, x]:
+                    cv_size = 2 if grade < 3 else 3
+                    img[max(0, y-cv_size):min(self.img_size[0], y+cv_size),
+                        max(0, x-cv_size):min(self.img_size[1], x+cv_size)] = [0.8, 0.2, 0.1]
         
         if grade > 2:
-            # Simulate hemorrhages (larger spots)
-            num_hemorrhages = grade - 2
+            # Add hemorrhages (larger dark spots)
+            num_hemorrhages = (grade - 2) * 3
             for _ in range(num_hemorrhages):
-                x, y = np.random.randint(30, self.img_size[0]-30, 2)
-                img[x-5:x+5, y-5:y+5] = [150, 50, 50]
+                x = np.random.randint(30, self.img_size[0]-30)
+                y = np.random.randint(30, self.img_size[1]-30)
+                if mask[y, x]:
+                    img[max(0, y-5):min(self.img_size[0], y+5),
+                        max(0, x-5):min(self.img_size[1], x+5)] = [0.5, 0.1, 0.05]
+        
+        # Add noise for realism
+        noise = np.random.normal(0, 0.02, img.shape)
+        img = img + noise
+        
+        # Ensure values are in [0, 1] range for RGB
+        img = np.clip(img, 0, 1)
         
         return img
     
@@ -141,7 +167,7 @@ class ImageModelTrainer:
             width_shift_range=0.1,
             height_shift_range=0.1,
             horizontal_flip=True,
-            vertical_flip=True,
+            vertical_flip=False,  # Don't flip vertically for medical images
             zoom_range=0.1,
             fill_mode='constant',
             cval=0
@@ -190,69 +216,137 @@ class ImageModelTrainer:
         self.class_weight_dict = dict(enumerate(class_weights))
         print(f"📊 Class weights: {self.class_weight_dict}")
     
-    def build_model(self, architecture='efficientnet'):
+    def build_model(self, architecture='mobilenet'):
         """Build CNN model with transfer learning"""
         print(f"\n🏗️ Building {architecture} model...")
         
-        # Input layer
+        # Clear any existing models
+        tf.keras.backend.clear_session()
+        
+        # Build model using Functional API
         inputs = keras.Input(shape=(*self.img_size, 3))
         
-        # Choose base model
-        if architecture == 'efficientnet':
-            base_model = EfficientNetB0(
+        # Data augmentation layer (part of model)
+        data_augmentation = keras.Sequential([
+            layers.RandomFlip("horizontal"),
+            layers.RandomRotation(0.1),
+            layers.RandomZoom(0.1),
+        ])
+        
+        x = data_augmentation(inputs)
+        
+        # Preprocessing for the specific model
+        if architecture == 'mobilenet':
+            # Use MobileNetV2 which is more stable
+            preprocess_input = keras.applications.mobilenet_v2.preprocess_input
+            x = preprocess_input(x)
+            
+            base_model = keras.applications.MobileNetV2(
+                input_shape=(*self.img_size, 3),
                 include_top=False,
                 weights='imagenet',
-                input_tensor=inputs,
                 pooling='avg'
             )
-            # Unfreeze last 20 layers
-            for layer in base_model.layers[:-20]:
-                layer.trainable = False
-        else:  # ResNet
-            base_model = ResNet50V2(
+            
+            # Freeze base model layers initially
+            base_model.trainable = False
+            
+        else:  # Use ResNet50V2 as alternative
+            preprocess_input = keras.applications.resnet_v2.preprocess_input
+            x = preprocess_input(x)
+            
+            base_model = keras.applications.ResNet50V2(
+                input_shape=(*self.img_size, 3),
                 include_top=False,
                 weights='imagenet',
-                input_tensor=inputs,
                 pooling='avg'
             )
-            # Unfreeze last 30 layers
-            for layer in base_model.layers[:-30]:
-                layer.trainable = False
+            
+            base_model.trainable = False
         
-        # Get base model output
-        x = base_model.output
+        # Pass through base model
+        x = base_model(x, training=False)
         
-        # Add custom layers
-        x = layers.Dense(256, activation='relu')(x)
-        x = layers.BatchNormalization()(x)
+        # Add custom classification head
         x = layers.Dropout(0.5)(x)
-        
         x = layers.Dense(128, activation='relu')(x)
         x = layers.BatchNormalization()(x)
         x = layers.Dropout(0.3)(x)
         
-        # Output layer
-        outputs = layers.Dense(self.num_classes, activation='softmax')(x)
+        # Output layer for 5 classes
+        outputs = layers.Dense(self.num_classes, activation='softmax', name='predictions')(x)
         
-        # Create model
-        self.model = keras.Model(inputs=inputs, outputs=outputs)
+        # Create the model
+        self.model = keras.Model(inputs, outputs)
         
         # Compile model
         self.model.compile(
-            optimizer=Adam(learning_rate=0.0001),
+            optimizer=Adam(learning_rate=0.001),
             loss='categorical_crossentropy',
-            metrics=['accuracy', tf.keras.metrics.AUC(name='auc')]
+            metrics=['accuracy', keras.metrics.AUC(name='auc')]
         )
         
-        print(f"✅ Model built with {len(self.model.layers)} layers")
-        print(f"   Trainable parameters: {self.model.count_params():,}")
-    
-    def train_model(self, epochs=20):
-        """Train the model"""
-        print(f"\n🚀 Training model for {epochs} epochs...")
+        print(f"✅ Model built successfully!")
+        print(f"   Total layers: {len(self.model.layers)}")
+        print(f"   Trainable parameters: {sum(tf.keras.backend.count_params(w) for w in self.model.trainable_weights):,}")
+        print(f"   Non-trainable parameters: {sum(tf.keras.backend.count_params(w) for w in self.model.non_trainable_weights):,}")
         
-        # Callbacks
-        callbacks = [
+        # Store base model reference for fine-tuning
+        self.base_model = base_model
+    
+    def train_model(self, epochs=15):
+        """Train the model with two-stage training"""
+        print(f"\n🚀 Starting two-stage training...")
+        
+        # Stage 1: Train only the top layers
+        print("\n📌 Stage 1: Training classification head only...")
+        
+        callbacks_stage1 = [
+            EarlyStopping(
+                monitor='val_loss',
+                patience=3,
+                restore_best_weights=True,
+                verbose=1
+            ),
+            ReduceLROnPlateau(
+                monitor='val_loss',
+                factor=0.5,
+                patience=2,
+                min_lr=1e-7,
+                verbose=1
+            )
+        ]
+        
+        history_stage1 = self.model.fit(
+            self.train_generator,
+            epochs=5,  # Quick initial training
+            validation_data=self.val_generator,
+            class_weight=self.class_weight_dict,
+            callbacks=callbacks_stage1,
+            verbose=1
+        )
+        
+        # Stage 2: Fine-tune the model
+        print("\n📌 Stage 2: Fine-tuning with unfrozen base layers...")
+        
+        # Unfreeze the base model
+        self.base_model.trainable = True
+        
+        # Fine-tune from this layer onwards
+        fine_tune_at = len(self.base_model.layers) - 20
+        
+        # Freeze all layers before fine_tune_at
+        for layer in self.base_model.layers[:fine_tune_at]:
+            layer.trainable = False
+        
+        # Recompile with lower learning rate
+        self.model.compile(
+            optimizer=Adam(learning_rate=0.0001),
+            loss='categorical_crossentropy',
+            metrics=['accuracy', keras.metrics.AUC(name='auc')]
+        )
+        
+        callbacks_stage2 = [
             ModelCheckpoint(
                 self.model_path / 'best_image_model.h5',
                 monitor='val_accuracy',
@@ -270,20 +364,22 @@ class ImageModelTrainer:
                 monitor='val_loss',
                 factor=0.5,
                 patience=3,
-                min_lr=1e-7,
+                min_lr=1e-8,
                 verbose=1
             )
         ]
         
-        # Train model
-        self.history = self.model.fit(
+        history_stage2 = self.model.fit(
             self.train_generator,
-            epochs=epochs,
+            epochs=epochs - 5,  # Remaining epochs
             validation_data=self.val_generator,
             class_weight=self.class_weight_dict,
-            callbacks=callbacks,
+            callbacks=callbacks_stage2,
             verbose=1
         )
+        
+        # Combine histories
+        self.history = history_stage2
         
         print("✅ Training complete!")
     
@@ -300,9 +396,9 @@ class ImageModelTrainer:
         accuracy = accuracy_score(y_true, y_pred)
         
         # For multi-class, calculate metrics with averaging
-        precision = precision_score(y_true, y_pred, average='weighted')
-        recall = recall_score(y_true, y_pred, average='weighted')
-        f1 = f1_score(y_true, y_pred, average='weighted')
+        precision = precision_score(y_true, y_pred, average='weighted', zero_division=0)
+        recall = recall_score(y_true, y_pred, average='weighted', zero_division=0)
+        f1 = f1_score(y_true, y_pred, average='weighted', zero_division=0)
         
         # Store results
         self.results = {
@@ -316,9 +412,11 @@ class ImageModelTrainer:
         # Per-class accuracy
         cm = confusion_matrix(y_true, y_pred)
         for i in range(self.num_classes):
-            if cm[i].sum() > 0:
+            if i < len(cm) and cm[i].sum() > 0:
                 class_acc = cm[i, i] / cm[i].sum()
                 self.results['per_class_accuracy'][f'grade_{i}'] = float(class_acc)
+            else:
+                self.results['per_class_accuracy'][f'grade_{i}'] = 0.0
         
         print(f"\n📊 Test Results:")
         print(f"  Overall Accuracy: {accuracy:.4f}")
@@ -383,12 +481,12 @@ class ImageModelTrainer:
         # Save metadata
         metadata = {
             'training_date': datetime.now().isoformat(),
-            'architecture': 'EfficientNetB0',
+            'architecture': 'MobileNetV2',
             'input_size': list(self.img_size),
             'num_classes': self.num_classes,
             'batch_size': self.batch_size,
-            'epochs_trained': len(self.history.history['loss']),
-            'final_val_accuracy': float(self.history.history['val_accuracy'][-1]),
+            'epochs_trained': len(self.history.history['loss']) if self.history else 0,
+            'final_val_accuracy': float(self.history.history['val_accuracy'][-1]) if self.history else 0,
             'test_accuracy': self.results['accuracy']
         }
         
@@ -405,7 +503,7 @@ def main():
     
     # Pipeline
     trainer.prepare_data_generators()
-    trainer.build_model('efficientnet')
+    trainer.build_model('mobilenet')  # Using MobileNet for stability
     trainer.train_model(epochs=10)  # Reduced epochs for faster training
     trainer.evaluate_model()
     trainer.plot_training_history()
