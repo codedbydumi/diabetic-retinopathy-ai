@@ -69,6 +69,6 @@ class ProductionModelTester:
 
 # Run tests
 tester = ProductionModelTester()
-tester.test_inference_speed("ml-pipeline/models/stable_dr_ensemble.keras")
-tester.test_model_consistency("ml-pipeline/models/stable_dr_ensemble.keras")
-tester.test_edge_cases("ml-pipeline/models/stable_dr_ensemble.keras")
+tester.test_inference_speed("ml-pipeline/models/stable_dr_ensemble.h5")
+tester.test_model_consistency("ml-pipeline/models/stable_dr_ensemble.h5")
+tester.test_edge_cases("ml-pipeline/models/stable_dr_ensemble.h5")
