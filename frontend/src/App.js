@@ -596,7 +596,8 @@ const AboutSection = ({ modelInfo }) => {
           <h3>🤖 Technology Stack</h3>
           <ul>
             <li><strong>Backend:</strong> FastAPI, Python 3.9+</li>
-            <li><strong>ML Models:</strong> XGBoost, Random Forest, MobileNetV2</li>
+            <li><strong>ML Models:</strong> XGBoost, Random Forest, ResNet50, VGG16, MobileNetV2</li>
+            <li><strong>Image Processing:</strong> TensorFlow, OpenCV, CLAHE preprocessing</li>
             <li><strong>Frontend:</strong> React, Axios</li>
             <li><strong>Deployment:</strong> Docker, Kubernetes-ready</li>
           </ul>
@@ -616,13 +617,14 @@ const AboutSection = ({ modelInfo }) => {
                 <h4>Image Model</h4>
                 <p>Status: {modelInfo.image_model?.loaded ? '✅ Loaded' : '❌ Not Loaded'}</p>
                 <p>Type: {modelInfo.image_model?.type}</p>
-                <p>Input: {modelInfo.image_model?.input_size?.join(' × ')}</p>
+                <p>Current: {modelInfo.image_model?.current_model || 'Unknown'}</p>
+                <p>Components: {modelInfo.image_model?.ensemble_components?.join(', ') || 'N/A'}</p>
               </div>
               <div className="model-info-item">
                 <h4>Fusion Model</h4>
                 <p>Status: {modelInfo.fusion_model?.loaded ? '✅ Loaded' : '❌ Not Loaded'}</p>
                 <p>Type: {modelInfo.fusion_model?.type}</p>
-                <p>Accuracy: {(modelInfo.fusion_model?.accuracy * 100).toFixed(1)}%</p>
+                <p>Accuracy: {modelInfo.fusion_model?.accuracy ? (modelInfo.fusion_model.accuracy * 100).toFixed(1) + '%' : 'N/A'}</p>
               </div>
             </div>
           )}
