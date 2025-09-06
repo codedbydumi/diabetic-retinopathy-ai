@@ -1,0 +1,24 @@
+DIABETIC RETINOPATHY MULTI-MODAL AI SYSTEM
+==================================================
+
+MODEL PERFORMANCE SUMMARY
+------------------------------
+
+Clinical Only (Best):
+  Model: Random Forest
+  Accuracy: 0.8780
+  AUC-ROC: 0.9269
+
+Image Only:
+  Model: MobileNetV2
+  Accuracy: 0.2600
+
+Multi-Modal Fusion (Best):
+  Model: Random Forest
+  Accuracy: 0.9787
+  AUC-ROC: 0.9938
+
+------------------------------
+Best Clinical Accuracy: 0.8780
+Best Fusion Accuracy: 0.9787
+Improvement: +11.5%
