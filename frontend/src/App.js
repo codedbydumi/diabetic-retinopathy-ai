@@ -646,8 +646,8 @@ const Footer = () => {
   return (
     <footer className="app-footer">
       <div className="footer-content">
-        <p>© 2024 Diabetic Retinopathy AI Detection System</p>
-        <p>Built with ❤️ for improving healthcare accessibility through AI</p>
+        <p>© 2025 Diabetic Retinopathy AI Detection System</p>
+        <p>Built with ❤️ by Dumindu Thushan for improving healthcare accessibility through AI</p>
       </div>
     </footer>
   );
