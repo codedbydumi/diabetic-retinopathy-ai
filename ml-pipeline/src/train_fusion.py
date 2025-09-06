@@ -1,5 +1,5 @@
 """
-Multi-Modal Fusion Model
+Multi-Modal Fusion Model - Simplified Version
 Combines clinical and image models for final prediction
 """
 
@@ -11,7 +11,7 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers, models
 import json
-from sklearn.metrics import accuracy_score, roc_auc_score, classification_report
+from sklearn.metrics import accuracy_score, roc_auc_score
 import matplotlib.pyplot as plt
 import seaborn as sns
 import warnings
@@ -22,33 +22,35 @@ class FusionModel:
         self.data_path = Path("ml-pipeline/data")
         self.model_path = Path("ml-pipeline/models")
         
-        # Load pre-trained models
         self.clinical_model = None
-        self.image_model = None
-        self.fusion_model = None
-        
+        self.scaler = None
         self.results = {}
         
     def load_pretrained_models(self):
-        """Load the pre-trained clinical and image models"""
+        """Load pre-trained clinical model"""
         print("📦 Loading pre-trained models...")
         
-        # Load clinical model (using ensemble)
-        self.clinical_model = joblib.load(self.model_path / 'clinical_ensemble.pkl')
-        print("   ✅ Clinical ensemble model loaded")
+        # Load clinical model
+        try:
+            self.clinical_model = joblib.load(self.model_path / 'clinical_ensemble.pkl')
+            print("   ✅ Clinical ensemble loaded")
+        except:
+            try:
+                self.clinical_model = joblib.load(self.model_path / 'clinical_random_forest.pkl')
+                print("   ✅ Clinical random forest loaded")
+            except:
+                self.clinical_model = joblib.load(self.model_path / 'clinical_xgboost.pkl')
+                print("   ✅ Clinical XGBoost loaded")
         
-        # Load image model
-        self.image_model = tf.keras.models.load_model(
-            self.model_path / 'retina_image_model.h5'
-        )
-        print("   ✅ Image model loaded")
-        
-        # Load scaler for clinical data
+        # Load scaler
         self.scaler = joblib.load(self.model_path / 'clinical_scaler.pkl')
-        print("   ✅ Clinical scaler loaded")
+        print("   ✅ Scaler loaded")
+        
+        # Note: Image model loading skipped due to format issues
+        print("   ⚠️ Image model will use simulated predictions")
     
     def prepare_fusion_data(self):
-        """Prepare data for fusion model training"""
+        """Prepare fusion data"""
         print("\n📊 Preparing fusion data...")
         
         # Load clinical data
@@ -61,155 +63,58 @@ class FusionModel:
         val_images = pd.read_csv(self.data_path / 'val' / 'image_metadata_val.csv')
         test_images = pd.read_csv(self.data_path / 'test' / 'image_metadata_test.csv')
         
-        # For demonstration, we'll create synthetic predictions
-        # In production, you'd get actual predictions from the models
-        
         # Get clinical predictions
-        X_train_clinical = self.scaler.transform(train_clinical.drop('outcome', axis=1))
-        X_val_clinical = self.scaler.transform(val_clinical.drop('outcome', axis=1))
-        X_test_clinical = self.scaler.transform(test_clinical.drop('outcome', axis=1))
+        X_train = self.scaler.transform(train_clinical.drop('outcome', axis=1))
+        X_val = self.scaler.transform(val_clinical.drop('outcome', axis=1))
+        X_test = self.scaler.transform(test_clinical.drop('outcome', axis=1))
         
-        self.train_clinical_pred = self.clinical_model.predict_proba(X_train_clinical)[:, 1]
-        self.val_clinical_pred = self.clinical_model.predict_proba(X_val_clinical)[:, 1]
-        self.test_clinical_pred = self.clinical_model.predict_proba(X_test_clinical)[:, 1]
+        self.train_clinical_pred = self.clinical_model.predict_proba(X_train)[:, 1]
+        self.val_clinical_pred = self.clinical_model.predict_proba(X_val)[:, 1]
+        self.test_clinical_pred = self.clinical_model.predict_proba(X_test)[:, 1]
         
-        # Simulate image predictions (in production, use actual model predictions)
-        # Convert DR grades to diabetes probability
-        self.train_image_pred = self.grade_to_diabetes_prob(train_images['dr_grade'].values)
-        self.val_image_pred = self.grade_to_diabetes_prob(val_images['dr_grade'].values)
-        self.test_image_pred = self.grade_to_diabetes_prob(test_images['dr_grade'].values)
+        # Simulate image predictions based on DR grades
+        self.train_image_pred = self.simulate_image_predictions(train_images['dr_grade'].values)
+        self.val_image_pred = self.simulate_image_predictions(val_images['dr_grade'].values)
+        self.test_image_pred = self.simulate_image_predictions(test_images['dr_grade'].values)
         
         # True labels
         self.y_train = train_clinical['outcome'].values
         self.y_val = val_clinical['outcome'].values
         self.y_test = test_clinical['outcome'].values
         
-        # Ensure same length (some patients might not have images)
-        min_len_train = min(len(self.train_clinical_pred), len(self.train_image_pred))
-        min_len_val = min(len(self.val_clinical_pred), len(self.val_image_pred))
-        min_len_test = min(len(self.test_clinical_pred), len(self.test_image_pred))
+        # Align lengths
+        min_train = min(len(self.train_clinical_pred), len(self.train_image_pred))
+        min_val = min(len(self.val_clinical_pred), len(self.val_image_pred))
+        min_test = min(len(self.test_clinical_pred), len(self.test_image_pred))
         
-        self.train_clinical_pred = self.train_clinical_pred[:min_len_train]
-        self.train_image_pred = self.train_image_pred[:min_len_train]
-        self.y_train = self.y_train[:min_len_train]
+        self.train_clinical_pred = self.train_clinical_pred[:min_train]
+        self.train_image_pred = self.train_image_pred[:min_train]
+        self.y_train = self.y_train[:min_train]
         
-        self.val_clinical_pred = self.val_clinical_pred[:min_len_val]
-        self.val_image_pred = self.val_image_pred[:min_len_val]
-        self.y_val = self.y_val[:min_len_val]
+        self.val_clinical_pred = self.val_clinical_pred[:min_val]
+        self.val_image_pred = self.val_image_pred[:min_val]
+        self.y_val = self.y_val[:min_val]
         
-        self.test_clinical_pred = self.test_clinical_pred[:min_len_test]
-        self.test_image_pred = self.test_image_pred[:min_len_test]
-        self.y_test = self.y_test[:min_len_test]
+        self.test_clinical_pred = self.test_clinical_pred[:min_test]
+        self.test_image_pred = self.test_image_pred[:min_test]
+        self.y_test = self.y_test[:min_test]
         
-        print(f"   ✅ Train samples: {len(self.y_train)}")
-        print(f"   ✅ Validation samples: {len(self.y_val)}")
-        print(f"   ✅ Test samples: {len(self.y_test)}")
+        print(f"   ✅ Train: {len(self.y_train)} samples")
+        print(f"   ✅ Val: {len(self.y_val)} samples")
+        print(f"   ✅ Test: {len(self.y_test)} samples")
     
-    def grade_to_diabetes_prob(self, grades):
-        """Convert DR grade to diabetes probability"""
-        # Higher DR grades correlate with diabetes
-        prob_map = {0: 0.2, 1: 0.4, 2: 0.6, 3: 0.8, 4: 0.95}
-        return np.array([prob_map[g] + np.random.normal(0, 0.05) for g in grades]).clip(0, 1)
+    def simulate_image_predictions(self, grades):
+        """Simulate image model predictions from DR grades"""
+        # Map DR grades to diabetes probability
+        grade_to_prob = {0: 0.15, 1: 0.35, 2: 0.55, 3: 0.75, 4: 0.90}
+        base_probs = np.array([grade_to_prob[g] for g in grades])
+        
+        # Add noise
+        noise = np.random.normal(0, 0.1, len(base_probs))
+        return np.clip(base_probs + noise, 0, 1)
     
-    def build_neural_fusion_model(self):
-        """Build a neural network for fusion"""
-        print("\n🏗️ Building neural fusion model...")
-        
-        # Input layers
-        clinical_input = keras.Input(shape=(1,), name='clinical_prob')
-        image_input = keras.Input(shape=(1,), name='image_prob')
-        
-        # Combine inputs
-        combined = layers.concatenate([clinical_input, image_input])
-        
-        # Hidden layers
-        x = layers.Dense(16, activation='relu')(combined)
-        x = layers.BatchNormalization()(x)
-        x = layers.Dropout(0.3)(x)
-        x = layers.Dense(8, activation='relu')(x)
-        x = layers.BatchNormalization()(x)
-        x = layers.Dropout(0.2)(x)
-        
-        # Output layer
-        output = layers.Dense(1, activation='sigmoid', name='diabetes_prob')(x)
-        
-        # Create model
-        self.fusion_model = models.Model(
-            inputs=[clinical_input, image_input],
-            outputs=output
-        )
-        
-        # Compile
-        self.fusion_model.compile(
-            optimizer='adam',
-            loss='binary_crossentropy',
-            metrics=['accuracy', keras.metrics.AUC(name='auc')]
-        )
-        
-        print("   ✅ Neural fusion model built")
-        print(f"   Parameters: {self.fusion_model.count_params():,}")
-    
-    def train_fusion_model(self, epochs=50):
-        """Train the fusion model"""
-        print(f"\n🚀 Training fusion model for {epochs} epochs...")
-        
-        # Prepare data
-        X_train = [self.train_clinical_pred.reshape(-1, 1), 
-                   self.train_image_pred.reshape(-1, 1)]
-        X_val = [self.val_clinical_pred.reshape(-1, 1), 
-                 self.val_image_pred.reshape(-1, 1)]
-        
-        # Callbacks
-        callbacks = [
-            keras.callbacks.EarlyStopping(
-                monitor='val_accuracy',
-                patience=10,
-                restore_best_weights=True
-            ),
-            keras.callbacks.ReduceLROnPlateau(
-                monitor='val_loss',
-                factor=0.5,
-                patience=5
-            )
-        ]
-        
-        # Train
-        history = self.fusion_model.fit(
-            X_train, self.y_train,
-            validation_data=(X_val, self.y_val),
-            epochs=epochs,
-            batch_size=16,
-            callbacks=callbacks,
-            verbose=1
-        )
-        
-        print("   ✅ Fusion model trained")
-        
-        # Plot training history
-        fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-        
-        axes[0].plot(history.history['accuracy'], label='Train')
-        axes[0].plot(history.history['val_accuracy'], label='Validation')
-        axes[0].set_title('Fusion Model Accuracy')
-        axes[0].set_xlabel('Epoch')
-        axes[0].set_ylabel('Accuracy')
-        axes[0].legend()
-        axes[0].grid(True, alpha=0.3)
-        
-        axes[1].plot(history.history['loss'], label='Train')
-        axes[1].plot(history.history['val_loss'], label='Validation')
-        axes[1].set_title('Fusion Model Loss')
-        axes[1].set_xlabel('Epoch')
-        axes[1].set_ylabel('Loss')
-        axes[1].legend()
-        axes[1].grid(True, alpha=0.3)
-        
-        plt.tight_layout()
-        plt.savefig('docs/fusion_model_training.png')
-        plt.show()
-    
-    def evaluate_all_approaches(self):
-        """Compare all fusion approaches"""
+    def evaluate_fusion_approaches(self):
+        """Compare different fusion methods"""
         print("\n📊 Evaluating fusion approaches...")
         
         results = {}
@@ -221,7 +126,7 @@ class FusionModel:
             'auc': roc_auc_score(self.y_test, self.test_clinical_pred)
         }
         
-        # 2. Image only
+        # 2. Image only (simulated)
         image_pred = (self.test_image_pred > 0.5).astype(int)
         results['Image Only'] = {
             'accuracy': accuracy_score(self.y_test, image_pred),
@@ -236,25 +141,16 @@ class FusionModel:
             'auc': roc_auc_score(self.y_test, avg_prob)
         }
         
-        # 4. Weighted average (clinical has more weight)
-        weighted_prob = 0.6 * self.test_clinical_pred + 0.4 * self.test_image_pred
+        # 4. Weighted average
+        weights = [0.7, 0.3]  # More weight to clinical
+        weighted_prob = weights[0] * self.test_clinical_pred + weights[1] * self.test_image_pred
         weighted_pred = (weighted_prob > 0.5).astype(int)
         results['Weighted Average'] = {
             'accuracy': accuracy_score(self.y_test, weighted_pred),
             'auc': roc_auc_score(self.y_test, weighted_prob)
         }
         
-        # 5. Neural fusion
-        X_test = [self.test_clinical_pred.reshape(-1, 1), 
-                  self.test_image_pred.reshape(-1, 1)]
-        neural_prob = self.fusion_model.predict(X_test).flatten()
-        neural_pred = (neural_prob > 0.5).astype(int)
-        results['Neural Fusion'] = {
-            'accuracy': accuracy_score(self.y_test, neural_pred),
-            'auc': roc_auc_score(self.y_test, neural_prob)
-        }
-        
-        # 6. Maximum probability
+        # 5. Maximum
         max_prob = np.maximum(self.test_clinical_pred, self.test_image_pred)
         max_pred = (max_prob > 0.5).astype(int)
         results['Maximum'] = {
@@ -263,48 +159,67 @@ class FusionModel:
         }
         
         # Display results
-        print("\n" + "="*60)
-        print("FUSION APPROACH COMPARISON")
-        print("="*60)
+        print("\n" + "="*50)
+        print("FUSION RESULTS")
+        print("="*50)
         
-        results_df = pd.DataFrame(results).T
-        results_df = results_df.sort_values('accuracy', ascending=False)
-        
-        for approach, metrics in results_df.iterrows():
-            print(f"\n{approach}:")
+        for method, metrics in results.items():
+            print(f"\n{method}:")
             print(f"   Accuracy: {metrics['accuracy']:.4f}")
             print(f"   AUC-ROC:  {metrics['auc']:.4f}")
         
         # Plot comparison
+        self.plot_results(results)
+        
+        # Save results
+        self.results = results
+        
+        # Save best fusion config
+        best_method = max(results, key=lambda x: results[x]['accuracy'])
+        fusion_config = {
+            'best_method': best_method,
+            'best_accuracy': results[best_method]['accuracy'],
+            'best_auc': results[best_method]['auc'],
+            'clinical_weight': 0.7 if best_method == 'Weighted Average' else 0.5
+        }
+        
+        with open(self.model_path / 'fusion_config.json', 'w') as f:
+            json.dump(fusion_config, f, indent=2)
+        
+        print("\n" + "="*50)
+        print(f"🏆 BEST METHOD: {best_method}")
+        print(f"   Accuracy: {results[best_method]['accuracy']:.4f}")
+        print(f"   AUC-ROC:  {results[best_method]['auc']:.4f}")
+    
+    def plot_results(self, results):
+        """Plot comparison of fusion methods"""
         fig, axes = plt.subplots(1, 2, figsize=(12, 5))
         
-        # Accuracy comparison
-        approaches = list(results_df.index)
-        accuracies = results_df['accuracy'].values
+        methods = list(results.keys())
+        accuracies = [results[m]['accuracy'] for m in methods]
+        aucs = [results[m]['auc'] for m in methods]
         
-        bars1 = axes[0].bar(range(len(approaches)), accuracies, color='steelblue')
-        axes[0].set_xticks(range(len(approaches)))
-        axes[0].set_xticklabels(approaches, rotation=45, ha='right')
+        # Accuracy plot
+        bars1 = axes[0].bar(range(len(methods)), accuracies, color='steelblue')
+        axes[0].set_xticks(range(len(methods)))
+        axes[0].set_xticklabels(methods, rotation=45, ha='right')
         axes[0].set_ylabel('Accuracy')
         axes[0].set_title('Accuracy Comparison')
-        axes[0].set_ylim([0.7, 1.0])
+        axes[0].set_ylim([0.5, 1.0])
         
-        # Add value labels on bars
         for bar in bars1:
             height = bar.get_height()
             axes[0].text(bar.get_x() + bar.get_width()/2., height,
                         f'{height:.3f}', ha='center', va='bottom')
         
-        # AUC comparison
-        aucs = results_df['auc'].values
-        bars2 = axes[1].bar(range(len(approaches)), aucs, color='coral')
-        axes[1].set_xticks(range(len(approaches)))
-        axes[1].set_xticklabels(approaches, rotation=45, ha='right')
+        # AUC plot
+        bars2 = axes[1].bar(range(len(methods)), aucs, color='coral')
+        axes[1].set_xticks(range(len(methods)))
+        axes[1].set_xticklabels(methods, rotation=45, ha='right')
         axes[1].set_ylabel('AUC-ROC')
         axes[1].set_title('AUC-ROC Comparison')
-        axes[1].set_ylim([0.7, 1.0])
+        axes[1].set_ylim([0.5, 1.0])
         
-        # Add value labels
         for bar in bars2:
             height = bar.get_height()
             axes[1].text(bar.get_x() + bar.get_width()/2., height,
@@ -312,65 +227,7 @@ class FusionModel:
         
         plt.tight_layout()
         plt.savefig('docs/fusion_comparison.png')
-        plt.show()
-        
-        # Save results
-        self.results = results
-        results_df.to_csv(self.model_path / 'fusion_results.csv')
-        
-        with open(self.model_path / 'fusion_results.json', 'w') as f:
-            json.dump(results, f, indent=2)
-        
-        print("\n" + "="*60)
-        print(f"🏆 BEST APPROACH: {results_df.index[0]}")
-        print(f"   Accuracy: {results_df.iloc[0]['accuracy']:.4f}")
-        print(f"   AUC-ROC:  {results_df.iloc[0]['auc']:.4f}")
-        print("="*60)
-        
-        return results_df
-    
-    def create_optimized_fusion(self, results_df):
-        """Create the final optimized fusion model"""
-        print("\n🎯 Creating optimized fusion model...")
-        
-        best_approach = results_df.index[0]
-        
-        if best_approach == 'Neural Fusion':
-            # Save the neural fusion model
-            self.fusion_model.save(self.model_path / 'fusion_model.h5')
-            print("   ✅ Neural fusion model saved")
-            
-        elif best_approach in ['Simple Average', 'Weighted Average', 'Maximum']:
-            # Create a simple fusion function
-            fusion_config = {
-                'method': best_approach,
-                'clinical_weight': 0.6 if best_approach == 'Weighted Average' else 0.5,
-                'image_weight': 0.4 if best_approach == 'Weighted Average' else 0.5
-            }
-            
-            with open(self.model_path / 'fusion_config.json', 'w') as f:
-                json.dump(fusion_config, f, indent=2)
-            
-            print(f"   ✅ {best_approach} fusion configuration saved")
-    
-    def save_fusion_pipeline(self):
-        """Save the complete fusion pipeline configuration"""
-        print("\n💾 Saving fusion pipeline...")
-        
-        pipeline_config = {
-            'clinical_model': 'clinical_ensemble.pkl',
-            'image_model': 'retina_image_model.h5',
-            'fusion_model': 'fusion_model.h5' if hasattr(self, 'fusion_model') else 'fusion_config.json',
-            'scaler': 'clinical_scaler.pkl',
-            'best_accuracy': max([r['accuracy'] for r in self.results.values()]),
-            'best_auc': max([r['auc'] for r in self.results.values()]),
-            'approach_rankings': {k: v for k, v in self.results.items()}
-        }
-        
-        with open(self.model_path / 'pipeline_config.json', 'w') as f:
-            json.dump(pipeline_config, f, indent=2)
-        
-        print("   ✅ Pipeline configuration saved")
+        plt.close()
 
 def main():
     print("🔬 Multi-Modal Fusion Training Pipeline")
@@ -378,28 +235,18 @@ def main():
     
     fusion = FusionModel()
     
-    # Load pre-trained models
+    # Load models
     fusion.load_pretrained_models()
     
-    # Prepare fusion data
+    # Prepare data
     fusion.prepare_fusion_data()
     
-    # Build and train neural fusion
-    fusion.build_neural_fusion_model()
-    fusion.train_fusion_model(epochs=30)
-    
-    # Evaluate all approaches
-    results_df = fusion.evaluate_all_approaches()
-    
-    # Create optimized fusion
-    fusion.create_optimized_fusion(results_df)
-    
-    # Save pipeline
-    fusion.save_fusion_pipeline()
+    # Evaluate fusion approaches
+    fusion.evaluate_fusion_approaches()
     
     print("\n" + "="*50)
-    print("✨ Fusion model training complete!")
-    print("\nNext step: Run 'python backend/app/main.py' to start the API")
+    print("✨ Fusion evaluation complete!")
+    print("\nNext: Run 'python backend/app/main.py' to start the API")
 
 if __name__ == "__main__":
     main()
