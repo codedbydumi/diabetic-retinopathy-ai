@@ -4,8 +4,6 @@ __pycache__/
 *$py.class
 *.so
 .Python
-env/
-venv/
 ENV/
 *.egg-info/
 .pytest_cache/
@@ -35,7 +33,6 @@ ml-pipeline/models/
 
 # Frontend
 node_modules/
-build/
 dist/
 .DS_Store
 npm-debug.log*
