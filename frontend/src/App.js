@@ -6,7 +6,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { PredictionLoading } from './components/LoadingStates';
 
 // API Configuration
-const API_BASE_URL = 'http://5.189.151.50:8003/';
+const API_BASE_URL = 'http://5.189.151.50:8003';
 axios.defaults.baseURL = API_BASE_URL;
 
 // Main App Component
