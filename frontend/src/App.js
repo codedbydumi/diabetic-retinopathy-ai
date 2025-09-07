@@ -49,8 +49,9 @@ const App = () => {
         <Header healthStatus={healthStatus} />
         <Navigation activeTab={activeTab} setActiveTab={setActiveTab} />
         <main className="main-content">
-          {activeTab === 'predict' && <PredictionForm addToast={addToast} />}
           {activeTab === 'metrics' && <MetricsSection />}
+          {activeTab === 'predict' && <PredictionForm addToast={addToast} />}
+          
           {activeTab === 'about' && <AboutSection modelInfo={modelInfo} />}
         </main>
         <Footer />
@@ -92,8 +93,9 @@ const Header = ({ healthStatus }) => {
 // Navigation Component
 const Navigation = ({ activeTab, setActiveTab }) => {
   const tabs = [
-    { id: 'predict', label: 'Analyze', icon: '🔬' },
     { id: 'metrics', label: 'Metrics', icon: '📊' },
+    { id: 'predict', label: 'Analyze', icon: '🔬' },
+    
     { id: 'about', label: 'About', icon: 'ℹ️' }
   ];
 
@@ -617,10 +619,7 @@ const PredictionForm = ({ addToast }) => {
             </div>
           )}
 
-          <div className="report-actions">
-            <button className="btn btn-secondary">Download Report</button>
-            <button className="btn btn-secondary">Print Results</button>
-          </div>
+      
 
           <div className="prediction-id">
             Prediction ID: {prediction.prediction_id}
@@ -837,24 +836,7 @@ const AboutSection = ({ modelInfo }) => {
           </p>
         </div>
 
-        <div className="info-card">
-          <h3>Model Performance</h3>
-          <div className="model-stats">
-            <div className="stat">
-              <span className="stat-label">Clinical Model</span>
-              <span className="stat-value">87.8% Accuracy</span>
-            </div>
-            <div className="stat">
-              <span className="stat-label">Image Model</span>
-              <span className="stat-value">85% Accuracy*</span>
-            </div>
-            <div className="stat">
-              <span className="stat-label">Combined</span>
-              <span className="stat-value">92% Accuracy</span>
-            </div>
-          </div>
-          <p className="note">*With synthetic training data. Production models achieve 90%+ with real data.</p>
-        </div>
+       
 
         <div className="info-card">
           <h3>Technology Stack</h3>
