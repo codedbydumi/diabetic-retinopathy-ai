@@ -6,7 +6,8 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { PredictionLoading } from './components/LoadingStates';
 
 // API Configuration
-const API_BASE_URL = 'http://5.189.151.50:8003';
+// In App.js, temporarily use a CORS proxy
+const API_BASE_URL = 'https://cors-anywhere.herokuapp.com/http://5.189.151.50:8003';
 axios.defaults.baseURL = API_BASE_URL;
 
 // Main App Component

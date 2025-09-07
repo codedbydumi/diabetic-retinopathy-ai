@@ -487,12 +487,11 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001" ,"https://diabetic-retinopathy-ai-two.vercel.app/" ,"*"],
+    allow_origins=["*"],  # This allows ANY origin
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # Allow all methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allow all headers
 )
-
 # ==================== API Endpoints ====================
 
 @app.get("/", response_model=Dict[str, str])
