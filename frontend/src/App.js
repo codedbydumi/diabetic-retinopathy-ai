@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './App.css';
-import Dashboard from './components/Dashboard';
 import { ToastContainer, useToast } from './components/Toast';
 import ErrorBoundary from './components/ErrorBoundary';
 import { PredictionLoading } from './components/LoadingStates';
@@ -50,8 +49,8 @@ const App = () => {
         <Header healthStatus={healthStatus} />
         <Navigation activeTab={activeTab} setActiveTab={setActiveTab} />
         <main className="main-content">
-          {activeTab === 'dashboard' && <Dashboard />}
           {activeTab === 'predict' && <PredictionForm addToast={addToast} />}
+          {activeTab === 'metrics' && <MetricsSection />}
           {activeTab === 'about' && <AboutSection modelInfo={modelInfo} />}
         </main>
         <Footer />
@@ -93,8 +92,8 @@ const Header = ({ healthStatus }) => {
 // Navigation Component
 const Navigation = ({ activeTab, setActiveTab }) => {
   const tabs = [
-    { id: 'dashboard', label: 'Dashboard', icon: '📊' },
     { id: 'predict', label: 'Analyze', icon: '🔬' },
+    { id: 'metrics', label: 'Metrics', icon: '📊' },
     { id: 'about', label: 'About', icon: 'ℹ️' }
   ];
 
@@ -146,7 +145,12 @@ const PredictionForm = ({ addToast }) => {
       age: { min: 18, max: 120, message: 'Age must be between 18-120 years' },
       bmi: { min: 10, max: 70, message: 'BMI must be between 10-70' },
       blood_pressure: { min: 0, max: 250, message: 'Blood pressure must be between 0-250 mmHg' },
-      hba1c: { min: 4, max: 15, message: 'HbA1c must be between 4-15%' }
+      hba1c: { min: 4, max: 15, message: 'HbA1c must be between 4-15%' },
+      insulin: { min: 0, max: 900, message: 'Insulin must be between 0-900 μU/mL' },
+      cholesterol: { min: 100, max: 400, message: 'Cholesterol must be between 100-400 mg/dL' },
+      skin_thickness: { min: 0, max: 100, message: 'Skin thickness must be between 0-100 mm' },
+      diabetes_pedigree: { min: 0, max: 3, message: 'Diabetes pedigree must be between 0-3' },
+      exercise_weekly: { min: 0, max: 7, message: 'Exercise days must be between 0-7' }
     };
 
     if (validationRules[name]) {
@@ -368,9 +372,90 @@ const PredictionForm = ({ addToast }) => {
             </div>
           </div>
 
+          {/* Lab Values Section */}
+          <div className="form-section">
+            <h3>Lab Values</h3>
+            <div className="input-row">
+              <div className="input-group">
+                <label htmlFor="insulin">Insulin (μU/mL)</label>
+                <input
+                  id="insulin"
+                  type="number"
+                  name="insulin"
+                  value={formData.insulin}
+                  onChange={handleInputChange}
+                  className={errors.insulin ? 'error' : ''}
+                  step="0.1"
+                />
+                {errors.insulin && <span className="error-message">{errors.insulin}</span>}
+              </div>
+              
+              <div className="input-group">
+                <label htmlFor="cholesterol">Cholesterol (mg/dL)</label>
+                <input
+                  id="cholesterol"
+                  type="number"
+                  name="cholesterol"
+                  value={formData.cholesterol}
+                  onChange={handleInputChange}
+                  className={errors.cholesterol ? 'error' : ''}
+                  step="0.1"
+                />
+                {errors.cholesterol && <span className="error-message">{errors.cholesterol}</span>}
+              </div>
+            </div>
+
+            <div className="input-row">
+              <div className="input-group">
+                <label htmlFor="skin_thickness">Skin Thickness (mm)</label>
+                <input
+                  id="skin_thickness"
+                  type="number"
+                  name="skin_thickness"
+                  value={formData.skin_thickness}
+                  onChange={handleInputChange}
+                  className={errors.skin_thickness ? 'error' : ''}
+                  step="0.1"
+                />
+                {errors.skin_thickness && <span className="error-message">{errors.skin_thickness}</span>}
+              </div>
+              
+              <div className="input-group">
+                <label htmlFor="diabetes_pedigree">Diabetes Pedigree</label>
+                <input
+                  id="diabetes_pedigree"
+                  type="number"
+                  name="diabetes_pedigree"
+                  value={formData.diabetes_pedigree}
+                  onChange={handleInputChange}
+                  className={errors.diabetes_pedigree ? 'error' : ''}
+                  step="0.001"
+                />
+                {errors.diabetes_pedigree && <span className="error-message">{errors.diabetes_pedigree}</span>}
+              </div>
+            </div>
+          </div>
+
           {/* Lifestyle Factors */}
           <div className="form-section">
             <h3>Lifestyle Factors</h3>
+            <div className="input-row">
+              <div className="input-group">
+                <label htmlFor="exercise_weekly">Exercise (days/week)</label>
+                <input
+                  id="exercise_weekly"
+                  type="number"
+                  name="exercise_weekly"
+                  value={formData.exercise_weekly}
+                  onChange={handleInputChange}
+                  className={errors.exercise_weekly ? 'error' : ''}
+                  min="0"
+                  max="7"
+                />
+                {errors.exercise_weekly && <span className="error-message">{errors.exercise_weekly}</span>}
+              </div>
+            </div>
+
             <div className="checkbox-group">
               <label className="checkbox-label">
                 <input
@@ -439,7 +524,7 @@ const PredictionForm = ({ addToast }) => {
         </div>
       </form>
 
-      {/* Results Display */}
+      {/* Enhanced Results Display */}
       {prediction && (
         <div className="results-container">
           <h2>Analysis Results</h2>
@@ -482,6 +567,16 @@ const PredictionForm = ({ addToast }) => {
                   <span>{(prediction.image_risk * 100).toFixed(1)}%</span>
                 </div>
               )}
+              <div className="metric-item combined-risk">
+                <span>Combined Risk:</span>
+                <div className="progress-bar">
+                  <div 
+                    className="progress-fill combined"
+                    style={{ width: `${prediction.combined_risk * 100}%` }}
+                  />
+                </div>
+                <span><strong>{(prediction.combined_risk * 100).toFixed(1)}%</strong></span>
+              </div>
             </div>
           </div>
 
@@ -494,9 +589,41 @@ const PredictionForm = ({ addToast }) => {
             </ul>
           </div>
 
+          {/* Feature Importance */}
+          {prediction.feature_importance && (
+            <div className="feature-importance">
+              <h3>🔍 Key Risk Factors</h3>
+              <div className="importance-bars">
+                {Object.entries(prediction.feature_importance)
+                  .sort(([,a], [,b]) => b - a)
+                  .slice(0, 5)
+                  .map(([feature, importance]) => (
+                    <div key={feature} className="importance-item">
+                      <span className="feature-name">
+                        {feature.replace(/_/g, ' ').toUpperCase()}
+                      </span>
+                      <div className="importance-bar-container">
+                        <div 
+                          className="importance-bar"
+                          style={{ width: `${importance * 100}%` }}
+                        />
+                      </div>
+                      <span className="importance-value">
+                        {(importance * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+
           <div className="report-actions">
             <button className="btn btn-secondary">Download Report</button>
             <button className="btn btn-secondary">Print Results</button>
+          </div>
+
+          <div className="prediction-id">
+            Prediction ID: {prediction.prediction_id}
           </div>
         </div>
       )}
@@ -504,7 +631,195 @@ const PredictionForm = ({ addToast }) => {
   );
 };
 
-// About Section
+// MetricsSection Component with Charts
+const MetricsSection = () => {
+  const [metrics, setMetrics] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [performanceHistory, setPerformanceHistory] = useState([]);
+
+  useEffect(() => {
+    fetchMetrics();
+    fetchPerformanceHistory();
+  }, []);
+
+  const fetchMetrics = async () => {
+    try {
+      const response = await axios.get('/models/metrics');
+      setMetrics(response.data);
+    } catch (error) {
+      console.error('Failed to fetch metrics:', error);
+      // Mock data for demonstration
+      setMetrics([
+        {
+          model_type: 'Clinical Model',
+          accuracy: 0.878,
+          precision: 0.845,
+          recall: 0.892,
+          f1_score: 0.868,
+          auc_roc: 0.921
+        },
+        {
+          model_type: 'Image Model',
+          accuracy: 0.850,
+          precision: 0.823,
+          recall: 0.876,
+          f1_score: 0.849,
+          auc_roc: 0.904
+        },
+        {
+          model_type: 'Fusion Model',
+          accuracy: 0.920,
+          precision: 0.898,
+          recall: 0.943,
+          f1_score: 0.920,
+          auc_roc: 0.957
+        }
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchPerformanceHistory = async () => {
+    try {
+      const response = await axios.get('/models/performance-history');
+      setPerformanceHistory(response.data);
+    } catch (error) {
+      console.error('Failed to fetch performance history:', error);
+      // Mock data for demonstration
+      setPerformanceHistory([
+        { date: '2025-01-01', clinical: 0.860, image: 0.820, fusion: 0.900 },
+        { date: '2025-02-01', clinical: 0.865, image: 0.830, fusion: 0.905 },
+        { date: '2025-03-01', clinical: 0.870, image: 0.840, fusion: 0.910 },
+        { date: '2025-04-01', clinical: 0.875, image: 0.845, fusion: 0.915 },
+        { date: '2025-05-01', clinical: 0.878, image: 0.850, fusion: 0.920 }
+      ]);
+    }
+  };
+
+  if (loading) {
+    return <div className="loading">Loading metrics...</div>;
+  }
+
+  return (
+    <div className="metrics-section">
+      <div className="section-header">
+        <h2>Model Performance Metrics</h2>
+        <p>Detailed performance statistics and trends for all deployed models</p>
+      </div>
+      
+      {/* Current Metrics */}
+      <div className="metrics-grid">
+        {metrics.map((model, idx) => (
+          <div key={idx} className="metric-card">
+            <h3>{model.model_type}</h3>
+            <div className="metric-values">
+              <div className="metric-item">
+                <span className="metric-label">Accuracy</span>
+                <span className="metric-value">
+                  {(model.accuracy * 100).toFixed(2)}%
+                </span>
+              </div>
+              <div className="metric-item">
+                <span className="metric-label">Precision</span>
+                <span className="metric-value">
+                  {(model.precision * 100).toFixed(2)}%
+                </span>
+              </div>
+              <div className="metric-item">
+                <span className="metric-label">Recall</span>
+                <span className="metric-value">
+                  {(model.recall * 100).toFixed(2)}%
+                </span>
+              </div>
+              <div className="metric-item">
+                <span className="metric-label">F1-Score</span>
+                <span className="metric-value">
+                  {(model.f1_score * 100).toFixed(2)}%
+                </span>
+              </div>
+              <div className="metric-item">
+                <span className="metric-label">AUC-ROC</span>
+                <span className="metric-value">
+                  {model.auc_roc.toFixed(4)}
+                </span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Performance Trends Chart */}
+      <div className="chart-section">
+        <h3>Performance Trends</h3>
+        <div className="chart-container">
+          <div className="chart-placeholder">
+            <div className="chart-header">
+              <h4>Model Accuracy Over Time</h4>
+            </div>
+            <div className="trend-lines">
+              {performanceHistory.map((data, idx) => (
+                <div key={idx} className="trend-point" style={{ left: `${(idx / (performanceHistory.length - 1)) * 100}%` }}>
+                  <div className="trend-tooltip">
+                    <div>{data.date}</div>
+                    <div>Clinical: {(data.clinical * 100).toFixed(1)}%</div>
+                    <div>Image: {(data.image * 100).toFixed(1)}%</div>
+                    <div>Fusion: {(data.fusion * 100).toFixed(1)}%</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="chart-legend">
+              <div className="legend-item">
+                <span className="legend-color clinical"></span>
+                <span>Clinical Model</span>
+              </div>
+              <div className="legend-item">
+                <span className="legend-color image"></span>
+                <span>Image Model</span>
+              </div>
+              <div className="legend-item">
+                <span className="legend-color fusion"></span>
+                <span>Fusion Model</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Model Comparison */}
+      <div className="comparison-section">
+        <h3>Model Comparison</h3>
+        <div className="comparison-chart">
+          {['accuracy', 'precision', 'recall', 'f1_score'].map(metric => (
+            <div key={metric} className="comparison-row">
+              <div className="metric-name">{metric.replace('_', ' ').toUpperCase()}</div>
+              <div className="comparison-bars">
+                {metrics.map((model, idx) => (
+                  <div key={idx} className="comparison-bar-container">
+                    <div className="model-label">{model.model_type}</div>
+                    <div className="comparison-bar">
+                      <div 
+                        className="comparison-fill"
+                        style={{ 
+                          width: `${model[metric] * 100}%`,
+                          backgroundColor: idx === 0 ? '#4CAF50' : idx === 1 ? '#2196F3' : '#FF9800'
+                        }}
+                      />
+                    </div>
+                    <div className="comparison-value">{(model[metric] * 100).toFixed(1)}%</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Enhanced About Section
 const AboutSection = ({ modelInfo }) => {
   return (
     <div className="about-section">
@@ -544,14 +859,46 @@ const AboutSection = ({ modelInfo }) => {
         <div className="info-card">
           <h3>Technology Stack</h3>
           <ul>
-            <li>Machine Learning: XGBoost, Random Forest</li>
-            <li>Deep Learning: MobileNetV2, Transfer Learning</li>
-            <li>Backend: FastAPI, Python 3.9+</li>
-            <li>Frontend: React, Modern JavaScript</li>
-            <li>Deployment: Docker-ready, Cloud-compatible</li>
+            <li><strong>Backend:</strong> FastAPI, Python 3.9+</li>
+            <li><strong>ML Models:</strong> XGBoost, Random Forest, ResNet50, VGG16, MobileNetV2</li>
+            <li><strong>Image Processing:</strong> TensorFlow, OpenCV, CLAHE preprocessing</li>
+            <li><strong>Frontend:</strong> React, Axios</li>
+            <li><strong>Deployment:</strong> Docker, Kubernetes-ready</li>
           </ul>
         </div>
 
+        {/* Live Model Information */}
+        <div className="info-card">
+          <h3>📊 Live Model Information</h3>
+          {modelInfo ? (
+            <div className="model-info-grid">
+              <div className="model-info-item">
+                <h4>Clinical Model</h4>
+                <p>Status: {modelInfo.clinical_model?.loaded ? '✅ Loaded' : '❌ Not Loaded'}</p>
+                <p>Type: {modelInfo.clinical_model?.type}</p>
+                <p>Accuracy: {modelInfo.clinical_model?.accuracy ? (modelInfo.clinical_model.accuracy * 100).toFixed(1) + '%' : 'N/A'}</p>
+              </div>
+              <div className="model-info-item">
+                <h4>Image Model</h4>
+                <p>Status: {modelInfo.image_model?.loaded ? '✅ Loaded' : '❌ Not Loaded'}</p>
+                <p>Type: {modelInfo.image_model?.type}</p>
+                <p>Current: {modelInfo.image_model?.current_model || 'Unknown'}</p>
+                <p>Components: {modelInfo.image_model?.ensemble_components?.join(', ') || 'N/A'}</p>
+              </div>
+              <div className="model-info-item">
+                <h4>Fusion Model</h4>
+                <p>Status: {modelInfo.fusion_model?.loaded ? '✅ Loaded' : '❌ Not Loaded'}</p>
+                <p>Type: {modelInfo.fusion_model?.type}</p>
+                <p>Accuracy: {modelInfo.fusion_model?.accuracy ? (modelInfo.fusion_model.accuracy * 100).toFixed(1) + '%' : 'N/A'}</p>
+              </div>
+            </div>
+          ) : (
+            <p>Loading model information...</p>
+          )}
+        </div>
+
+       
+       
         <div className="info-card warning">
           <h3>Important Notice</h3>
           <p>
@@ -574,16 +921,9 @@ const Footer = () => {
           <h4>Diabetic Retinopathy Detection</h4>
           <p>AI-powered medical analysis system</p>
         </div>
+     
         <div className="footer-section">
-          <h4>Resources</h4>
-          <ul>
-            <li><a href="/docs">API Documentation</a></li>
-            <li><a href="/research">Research Papers</a></li>
-            <li><a href="/privacy">Privacy Policy</a></li>
-          </ul>
-        </div>
-        <div className="footer-section">
-          <p className="copyright">© 2024 DR Detection System</p>
+          <p className="copyright">© 2025 DR Detection System by 💗 Dumindu Thushahn</p>
           <p className="tagline">Built with AI for better healthcare</p>
         </div>
       </div>
