@@ -4,7 +4,7 @@ import './App.css';
 import { ToastContainer, useToast } from './components/Toast';
 import ErrorBoundary from './components/ErrorBoundary';
 import { PredictionLoading } from './components/LoadingStates';
-
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
 // API Configuration
 // In App.js, temporarily use a CORS proxy
@@ -16,184 +16,125 @@ const API_BASE_URL = process.env.NODE_ENV === 'production'
 
 axios.defaults.baseURL = API_BASE_URL;
 
-// Performance Chart Component
-const PerformanceChart = ({ performanceHistory }) => {
-  const [hoveredPoint, setHoveredPoint] = useState(null);
+// Risk Distribution Donut Chart Component
+const RiskDistributionChart = ({ riskData }) => {
+  // Mock data if none provided
+  const defaultData = [
+    { name: 'Low Risk', value: 65, count: 1300 },
+    { name: 'Medium Risk', value: 20, count: 400 },
+    { name: 'High Risk', value: 12, count: 240 },
+    { name: 'Very High Risk', value: 3, count: 60 }
+  ];
 
-  if (!performanceHistory || performanceHistory.length === 0) {
+  const data = riskData || defaultData;
+
+  const COLORS = {
+    'Low Risk': '#00A651',
+    'Medium Risk': '#FFB800', 
+    'High Risk': '#DC3545',
+    'Very High Risk': '#8B0000'
+  };
+
+  const CustomTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div style={{
+          background: 'rgba(0,0,0,0.8)',
+          color: 'white',
+          padding: '8px 12px',
+          borderRadius: '4px',
+          fontSize: '12px'
+        }}>
+          <p style={{ margin: '0', fontWeight: 'bold' }}>{data.name}</p>
+          <p style={{ margin: '2px 0 0 0' }}>Patients: {data.count}</p>
+          <p style={{ margin: '2px 0 0 0' }}>Percentage: {data.value}%</p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
+    const RADIAN = Math.PI / 180;
+    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+    if (percent * 100 < 3) return null; // Don't show label for very small slices
+
     return (
-      <div className="chart-placeholder">
-        <p>No performance data available</p>
-      </div>
+      <text 
+        x={x} 
+        y={y} 
+        fill="white" 
+        textAnchor={x > cx ? 'start' : 'end'} 
+        dominantBaseline="central"
+        fontSize="12"
+        fontWeight="bold"
+      >
+        {`${(percent * 100).toFixed(0)}%`}
+      </text>
     );
-  }
-
-  const maxValue = Math.max(
-    ...performanceHistory.flatMap(d => [d.clinical, d.image, d.fusion])
-  );
-  const minValue = Math.min(
-    ...performanceHistory.flatMap(d => [d.clinical, d.image, d.fusion])
-  );
-  
-  const chartHeight = 200;
-  const chartWidth = 500;
-  const padding = { top: 20, right: 20, bottom: 40, left: 60 };
-  
-  const getY = (value) => {
-    const range = maxValue - minValue || 0.1;
-    return chartHeight - padding.bottom - ((value - minValue) / range) * (chartHeight - padding.top - padding.bottom);
-  };
-  
-  const getX = (index) => {
-    return padding.left + (index / (performanceHistory.length - 1)) * (chartWidth - padding.left - padding.right);
-  };
-
-  const createPath = (key) => {
-    return performanceHistory
-      .map((d, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(d[key])}`)
-      .join(' ');
-  };
-
-  const colors = {
-    clinical: '#4CAF50',
-    image: '#2196F3', 
-    fusion: '#FF9800'
-  };
-
-  const formatDate = (dateStr) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
   };
 
   return (
-    <div style={{ background: 'white', borderRadius: '8px', padding: '1rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-      <h4 style={{ margin: '0 0 1rem 0', color: '#333', textAlign: 'center' }}>Model Accuracy Over Time</h4>
+    <div style={{ 
+      background: 'white', 
+      borderRadius: '8px', 
+      padding: '1.5rem', 
+      boxShadow: '0 2px 4px rgba(0,0,0,0.1)' 
+    }}>
+      <h3 style={{ margin: '0 0 1rem 0', color: '#333', textAlign: 'center' }}>
+        Patient Risk Distribution
+      </h3>
       
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
-        <svg width={chartWidth} height={chartHeight} style={{ border: '1px solid #e0e0e0', borderRadius: '4px' }}>
-          {/* Grid lines */}
-          <defs>
-            <pattern id="grid" width="40" height="20" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 20" fill="none" stroke="#f0f0f0" strokeWidth="1"/>
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#grid)" />
-          
-          {/* Y-axis labels */}
-          {[0.8, 0.85, 0.9, 0.95].map(value => (
-            <g key={value}>
-              <text 
-                x={padding.left - 10} 
-                y={getY(value) + 4} 
-                textAnchor="end" 
-                fontSize="12" 
-                fill="#666"
-              >
-                {(value * 100).toFixed(0)}%
-              </text>
-              <line 
-                x1={padding.left} 
-                y1={getY(value)} 
-                x2={chartWidth - padding.right} 
-                y2={getY(value)} 
-                stroke="#e0e0e0" 
-                strokeWidth="1"
-              />
-            </g>
-          ))}
-          
-          {/* X-axis labels */}
-          {performanceHistory.map((d, i) => (
-            <text 
-              key={i}
-              x={getX(i)} 
-              y={chartHeight - 10} 
-              textAnchor="middle" 
-              fontSize="10" 
-              fill="#666"
-            >
-              {formatDate(d.date)}
-            </text>
-          ))}
-          
-          {/* Lines */}
-          {['clinical', 'image', 'fusion'].map(key => (
-            <path
-              key={key}
-              d={createPath(key)}
-              fill="none"
-              stroke={colors[key]}
-              strokeWidth="2"
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
-          ))}
-          
-          {/* Data points */}
-          {performanceHistory.map((d, i) => 
-            ['clinical', 'image', 'fusion'].map(key => (
-              <circle
-                key={`${i}-${key}`}
-                cx={getX(i)}
-                cy={getY(d[key])}
-                r="4"
-                fill={colors[key]}
-                stroke="white"
-                strokeWidth="2"
-                style={{ cursor: 'pointer', transition: 'r 0.2s ease' }}
-                onMouseEnter={() => setHoveredPoint({ index: i, key, data: d })}
-                onMouseLeave={() => setHoveredPoint(null)}
-              />
-            ))
-          )}
-          
-          {/* Tooltip */}
-          {hoveredPoint && (
-            <g>
-              <rect
-                x={getX(hoveredPoint.index) + 10}
-                y={getY(hoveredPoint.data[hoveredPoint.key]) - 30}
-                width="120"
-                height="50"
-                fill="rgba(0,0,0,0.8)"
-                rx="4"
-              />
-              <text
-                x={getX(hoveredPoint.index) + 15}
-                y={getY(hoveredPoint.data[hoveredPoint.key]) - 15}
-                fill="white"
-                fontSize="10"
-              >
-                {hoveredPoint.data.date}
-              </text>
-              <text
-                x={getX(hoveredPoint.index) + 15}
-                y={getY(hoveredPoint.data[hoveredPoint.key]) - 5}
-                fill="white"
-                fontSize="10"
-                fontWeight="bold"
-              >
-                {hoveredPoint.key}: {(hoveredPoint.data[hoveredPoint.key] * 100).toFixed(1)}%
-              </text>
-            </g>
-          )}
-        </svg>
-      </div>
+      <ResponsiveContainer width="100%" height={350}>
+        <PieChart>
+          <Pie
+            data={data}
+            cx="50%"
+            cy="50%"
+            labelLine={false}
+            label={renderCustomLabel}
+            outerRadius={120}
+            innerRadius={60}
+            fill="#8884d8"
+            dataKey="value"
+          >
+            {data.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={COLORS[entry.name]} />
+            ))}
+          </Pie>
+          <Tooltip content={<CustomTooltip />} />
+          <Legend 
+            wrapperStyle={{ paddingTop: '20px' }}
+            formatter={(value, entry) => (
+              <span style={{ color: entry.color, fontWeight: '500' }}>
+                {value}
+              </span>
+            )}
+          />
+        </PieChart>
+      </ResponsiveContainer>
       
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-        {Object.entries(colors).map(([key, color]) => (
-          <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', color: '#666' }}>
-            <span 
-              style={{ 
-                width: '12px', 
-                height: '12px', 
-                backgroundColor: color, 
-                borderRadius: '2px' 
-              }}
-            ></span>
-            <span style={{ fontWeight: '500' }}>
-              {key.charAt(0).toUpperCase() + key.slice(1)} Model
-            </span>
+      <div style={{ 
+        marginTop: '1rem', 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', 
+        gap: '1rem',
+        fontSize: '0.875rem'
+      }}>
+        {data.map((item) => (
+          <div key={item.name} style={{ textAlign: 'center' }}>
+            <div style={{ 
+              fontWeight: 'bold', 
+              color: COLORS[item.name],
+              fontSize: '1.25rem'
+            }}>
+              {item.count}
+            </div>
+            <div style={{ color: '#666' }}>{item.name}</div>
           </div>
         ))}
       </div>
@@ -822,15 +763,15 @@ const PredictionForm = ({ addToast }) => {
   );
 };
 
-// MetricsSection Component with Charts
+// MetricsSection Component with Risk Distribution Chart
 const MetricsSection = () => {
   const [metrics, setMetrics] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [performanceHistory, setPerformanceHistory] = useState([]);
+  const [riskData, setRiskData] = useState([]);
 
   useEffect(() => {
     fetchMetrics();
-    fetchPerformanceHistory();
+    fetchRiskDistribution();
   }, []);
 
   const fetchMetrics = async () => {
@@ -871,19 +812,18 @@ const MetricsSection = () => {
     }
   };
 
-  const fetchPerformanceHistory = async () => {
+  const fetchRiskDistribution = async () => {
     try {
-      const response = await axios.get('/models/performance-history');
-      setPerformanceHistory(response.data);
+      const response = await axios.get('/models/risk-distribution');
+      setRiskData(response.data);
     } catch (error) {
-      console.error('Failed to fetch performance history:', error);
+      console.error('Failed to fetch risk distribution:', error);
       // Mock data for demonstration
-      setPerformanceHistory([
-        { date: '2025-01-01', clinical: 0.860, image: 0.820, fusion: 0.900 },
-        { date: '2025-02-01', clinical: 0.865, image: 0.830, fusion: 0.905 },
-        { date: '2025-03-01', clinical: 0.870, image: 0.840, fusion: 0.910 },
-        { date: '2025-04-01', clinical: 0.875, image: 0.845, fusion: 0.915 },
-        { date: '2025-05-01', clinical: 0.878, image: 0.850, fusion: 0.920 }
+      setRiskData([
+        { name: 'Low Risk', value: 65, count: 1300 },
+        { name: 'Medium Risk', value: 20, count: 400 },
+        { name: 'High Risk', value: 12, count: 240 },
+        { name: 'Very High Risk', value: 3, count: 60 }
       ]);
     }
   };
@@ -940,11 +880,11 @@ const MetricsSection = () => {
         ))}
       </div>
 
-      {/* Performance Trends Chart */}
+      {/* Risk Distribution Chart */}
       <div className="chart-section">
-        <h3>Performance Trends</h3>
+        <h3>Patient Risk Analytics</h3>
         <div className="chart-container">
-          <PerformanceChart performanceHistory={performanceHistory} />
+          <RiskDistributionChart riskData={riskData} />
         </div>
       </div>
 
@@ -1061,16 +1001,16 @@ const Footer = () => {
   return (
     <footer className="app-footer">
       <div className="footer-content">
-      <div className="footer-section">
-        <h4>Diabetic Retinopathy Detection</h4>
-        <p>AI-powered medical analysis system</p>
+        <div className="footer-section">
+          <h4>Diabetic Retinopathy Detection</h4>
+          <p>AI-powered medical analysis system</p>
+        </div>
+     
+        <div className="footer-section">
+          <p className="copyright">© 2025 DR Detection System by 💗 Dumindu Thushahn</p>
+        
+        </div>
       </div>
-      
-      <div className="footer-section"> 
-        <p className="copyright">© 2025 DR Detection System by 💗 Dumindu Thushahn</p>
-      </div>
-    </div>
-      
     </footer>
   );
 };
