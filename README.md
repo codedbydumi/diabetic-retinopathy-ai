@@ -365,10 +365,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 <div align="center">
 
 ### 🌟 Star this repository if you find it helpful!
-<h3>🫀 Built with ❤️ by Codedbydumi for Better Healthcare</h3>
+<h3>🔍  Built with ❤️ by Codedbydumi for Better Healthcare</h3>
 
-[![GitHub stars](https://img.shields.io/github/stars/yourusername/diabetic-retinopathy-ai?style=social)](https://github.com/yourusername/diabetic-retinopathy-ai)
-[![GitHub forks](https://img.shields.io/github/forks/yourusername/diabetic-retinopathy-ai?style=social)](https://github.com/yourusername/diabetic-retinopathy-ai)
+[![GitHub stars](https://img.shields.io/github/stars/yourusername/diabetic-retinopathy-ai?style=social)](https://github.com/codedbydumi/diabetic-retinopathy-ai.git)
+[![GitHub forks](https://img.shields.io/github/forks/yourusername/diabetic-retinopathy-ai?style=social)](https://github.com/codedbydumi/diabetic-retinopathy-ai.git)
 
 </div>
 
