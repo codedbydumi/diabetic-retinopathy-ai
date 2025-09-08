@@ -4,7 +4,6 @@ import './App.css';
 import { ToastContainer, useToast } from './components/Toast';
 import ErrorBoundary from './components/ErrorBoundary';
 import { PredictionLoading } from './components/LoadingStates';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
 // API Configuration
 // In App.js, temporarily use a CORS proxy
@@ -15,132 +14,6 @@ const API_BASE_URL = process.env.NODE_ENV === 'production'
   : 'http://localhost:8000';
 
 axios.defaults.baseURL = API_BASE_URL;
-
-// Risk Distribution Donut Chart Component
-const RiskDistributionChart = ({ riskData }) => {
-  // Mock data if none provided
-  const defaultData = [
-    { name: 'Low Risk', value: 65, count: 1300 },
-    { name: 'Medium Risk', value: 20, count: 400 },
-    { name: 'High Risk', value: 12, count: 240 },
-    { name: 'Very High Risk', value: 3, count: 60 }
-  ];
-
-  const data = riskData || defaultData;
-
-  const COLORS = {
-    'Low Risk': '#00A651',
-    'Medium Risk': '#FFB800', 
-    'High Risk': '#DC3545',
-    'Very High Risk': '#8B0000'
-  };
-
-  const CustomTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <div style={{
-          background: 'rgba(0,0,0,0.8)',
-          color: 'white',
-          padding: '8px 12px',
-          borderRadius: '4px',
-          fontSize: '12px'
-        }}>
-          <p style={{ margin: '0', fontWeight: 'bold' }}>{data.name}</p>
-          <p style={{ margin: '2px 0 0 0' }}>Patients: {data.count}</p>
-          <p style={{ margin: '2px 0 0 0' }}>Percentage: {data.value}%</p>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
-    const RADIAN = Math.PI / 180;
-    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-    const x = cx + radius * Math.cos(-midAngle * RADIAN);
-    const y = cy + radius * Math.sin(-midAngle * RADIAN);
-
-    if (percent * 100 < 3) return null; // Don't show label for very small slices
-
-    return (
-      <text 
-        x={x} 
-        y={y} 
-        fill="white" 
-        textAnchor={x > cx ? 'start' : 'end'} 
-        dominantBaseline="central"
-        fontSize="12"
-        fontWeight="bold"
-      >
-        {`${(percent * 100).toFixed(0)}%`}
-      </text>
-    );
-  };
-
-  return (
-    <div style={{ 
-      background: 'white', 
-      borderRadius: '8px', 
-      padding: '1.5rem', 
-      boxShadow: '0 2px 4px rgba(0,0,0,0.1)' 
-    }}>
-      <h3 style={{ margin: '0 0 1rem 0', color: '#333', textAlign: 'center' }}>
-        Patient Risk Distribution
-      </h3>
-      
-      <ResponsiveContainer width="100%" height={350}>
-        <PieChart>
-          <Pie
-            data={data}
-            cx="50%"
-            cy="50%"
-            labelLine={false}
-            label={renderCustomLabel}
-            outerRadius={120}
-            innerRadius={60}
-            fill="#8884d8"
-            dataKey="value"
-          >
-            {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={COLORS[entry.name]} />
-            ))}
-          </Pie>
-          <Tooltip content={<CustomTooltip />} />
-          <Legend 
-            wrapperStyle={{ paddingTop: '20px' }}
-            formatter={(value, entry) => (
-              <span style={{ color: entry.color, fontWeight: '500' }}>
-                {value}
-              </span>
-            )}
-          />
-        </PieChart>
-      </ResponsiveContainer>
-      
-      <div style={{ 
-        marginTop: '1rem', 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', 
-        gap: '1rem',
-        fontSize: '0.875rem'
-      }}>
-        {data.map((item) => (
-          <div key={item.name} style={{ textAlign: 'center' }}>
-            <div style={{ 
-              fontWeight: 'bold', 
-              color: COLORS[item.name],
-              fontSize: '1.25rem'
-            }}>
-              {item.count}
-            </div>
-            <div style={{ color: '#666' }}>{item.name}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
 
 // Main App Component
 const App = () => {
@@ -763,15 +636,15 @@ const PredictionForm = ({ addToast }) => {
   );
 };
 
-// MetricsSection Component with Risk Distribution Chart
+// MetricsSection Component with Charts
 const MetricsSection = () => {
   const [metrics, setMetrics] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [riskData, setRiskData] = useState([]);
+  const [performanceHistory, setPerformanceHistory] = useState([]);
 
   useEffect(() => {
     fetchMetrics();
-    fetchRiskDistribution();
+    fetchPerformanceHistory();
   }, []);
 
   const fetchMetrics = async () => {
@@ -812,18 +685,19 @@ const MetricsSection = () => {
     }
   };
 
-  const fetchRiskDistribution = async () => {
+  const fetchPerformanceHistory = async () => {
     try {
-      const response = await axios.get('/models/risk-distribution');
-      setRiskData(response.data);
+      const response = await axios.get('/models/performance-history');
+      setPerformanceHistory(response.data);
     } catch (error) {
-      console.error('Failed to fetch risk distribution:', error);
+      console.error('Failed to fetch performance history:', error);
       // Mock data for demonstration
-      setRiskData([
-        { name: 'Low Risk', value: 65, count: 1300 },
-        { name: 'Medium Risk', value: 20, count: 400 },
-        { name: 'High Risk', value: 12, count: 240 },
-        { name: 'Very High Risk', value: 3, count: 60 }
+      setPerformanceHistory([
+        { date: '2025-01-01', clinical: 0.860, image: 0.820, fusion: 0.900 },
+        { date: '2025-02-01', clinical: 0.865, image: 0.830, fusion: 0.905 },
+        { date: '2025-03-01', clinical: 0.870, image: 0.840, fusion: 0.910 },
+        { date: '2025-04-01', clinical: 0.875, image: 0.845, fusion: 0.915 },
+        { date: '2025-05-01', clinical: 0.878, image: 0.850, fusion: 0.920 }
       ]);
     }
   };
@@ -880,11 +754,41 @@ const MetricsSection = () => {
         ))}
       </div>
 
-      {/* Risk Distribution Chart */}
+      {/* Performance Trends Chart */}
       <div className="chart-section">
-        <h3>Patient Risk Analytics</h3>
+        <h3>Performance Trends</h3>
         <div className="chart-container">
-          <RiskDistributionChart riskData={riskData} />
+          <div className="chart-placeholder">
+            <div className="chart-header">
+              <h4>Model Accuracy Over Time</h4>
+            </div>
+            <div className="trend-lines">
+              {performanceHistory.map((data, idx) => (
+                <div key={idx} className="trend-point" style={{ left: `${(idx / (performanceHistory.length - 1)) * 100}%` }}>
+                  <div className="trend-tooltip">
+                    <div>{data.date}</div>
+                    <div>Clinical: {(data.clinical * 100).toFixed(1)}%</div>
+                    <div>Image: {(data.image * 100).toFixed(1)}%</div>
+                    <div>Fusion: {(data.fusion * 100).toFixed(1)}%</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="chart-legend">
+              <div className="legend-item">
+                <span className="legend-color clinical"></span>
+                <span>Clinical Model</span>
+              </div>
+              <div className="legend-item">
+                <span className="legend-color image"></span>
+                <span>Image Model</span>
+              </div>
+              <div className="legend-item">
+                <span className="legend-color fusion"></span>
+                <span>Fusion Model</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
