@@ -7,7 +7,7 @@ import { PredictionLoading } from './components/LoadingStates';
 
 // API Configuration
 // In App.js, temporarily use a CORS proxy
-const API_BASE_URL = 'https://api.allorigins.win/raw?url=http://5.189.151.50:8003';
+const API_BASE_URL = 'https://cors-anywhere.herokuapp.com/http://5.189.151.50:8003';
 axios.defaults.baseURL = API_BASE_URL;
 
 // Main App Component
