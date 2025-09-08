@@ -7,18 +7,7 @@ import { PredictionLoading } from './components/LoadingStates';
 
 // API Configuration
 // In App.js, temporarily use a CORS proxy
-//const API_BASE_URL = 'http://5.189.151.50:8003';
-//axios.defaults.baseURL = API_BASE_URL; '''
-
-// In your App.js or wherever you configure axios
-//const API_BASE_URL = 'http://5.189.151.50:8001';
-//axios.defaults.baseURL = API_BASE_URL;
-
-// If you have environment-based configuration, use:
-const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? 'http://5.189.151.50:8003'  // Production (using nginx proxy)
-  : 'http://localhost:8003';     // Development (direct backend)
-
+const API_BASE_URL = 'https://api.allorigins.win/raw?url=http://5.189.151.50:8003';
 axios.defaults.baseURL = API_BASE_URL;
 
 // Main App Component
