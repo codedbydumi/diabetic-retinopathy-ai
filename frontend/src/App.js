@@ -5,6 +5,7 @@ import { ToastContainer, useToast } from './components/Toast';
 import ErrorBoundary from './components/ErrorBoundary';
 import { PredictionLoading } from './components/LoadingStates';
 
+
 // API Configuration
 // In App.js, temporarily use a CORS proxy
 //const API_BASE_URL = 'http://5.189.151.50:8003';
@@ -14,6 +15,191 @@ const API_BASE_URL = process.env.NODE_ENV === 'production'
   : 'http://localhost:8000';
 
 axios.defaults.baseURL = API_BASE_URL;
+
+// Performance Chart Component
+const PerformanceChart = ({ performanceHistory }) => {
+  const [hoveredPoint, setHoveredPoint] = useState(null);
+
+  if (!performanceHistory || performanceHistory.length === 0) {
+    return (
+      <div className="chart-placeholder">
+        <p>No performance data available</p>
+      </div>
+    );
+  }
+
+  const maxValue = Math.max(
+    ...performanceHistory.flatMap(d => [d.clinical, d.image, d.fusion])
+  );
+  const minValue = Math.min(
+    ...performanceHistory.flatMap(d => [d.clinical, d.image, d.fusion])
+  );
+  
+  const chartHeight = 200;
+  const chartWidth = 500;
+  const padding = { top: 20, right: 20, bottom: 40, left: 60 };
+  
+  const getY = (value) => {
+    const range = maxValue - minValue || 0.1;
+    return chartHeight - padding.bottom - ((value - minValue) / range) * (chartHeight - padding.top - padding.bottom);
+  };
+  
+  const getX = (index) => {
+    return padding.left + (index / (performanceHistory.length - 1)) * (chartWidth - padding.left - padding.right);
+  };
+
+  const createPath = (key) => {
+    return performanceHistory
+      .map((d, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getY(d[key])}`)
+      .join(' ');
+  };
+
+  const colors = {
+    clinical: '#4CAF50',
+    image: '#2196F3', 
+    fusion: '#FF9800'
+  };
+
+  const formatDate = (dateStr) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  };
+
+  return (
+    <div style={{ background: 'white', borderRadius: '8px', padding: '1rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+      <h4 style={{ margin: '0 0 1rem 0', color: '#333', textAlign: 'center' }}>Model Accuracy Over Time</h4>
+      
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
+        <svg width={chartWidth} height={chartHeight} style={{ border: '1px solid #e0e0e0', borderRadius: '4px' }}>
+          {/* Grid lines */}
+          <defs>
+            <pattern id="grid" width="40" height="20" patternUnits="userSpaceOnUse">
+              <path d="M 40 0 L 0 0 0 20" fill="none" stroke="#f0f0f0" strokeWidth="1"/>
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#grid)" />
+          
+          {/* Y-axis labels */}
+          {[0.8, 0.85, 0.9, 0.95].map(value => (
+            <g key={value}>
+              <text 
+                x={padding.left - 10} 
+                y={getY(value) + 4} 
+                textAnchor="end" 
+                fontSize="12" 
+                fill="#666"
+              >
+                {(value * 100).toFixed(0)}%
+              </text>
+              <line 
+                x1={padding.left} 
+                y1={getY(value)} 
+                x2={chartWidth - padding.right} 
+                y2={getY(value)} 
+                stroke="#e0e0e0" 
+                strokeWidth="1"
+              />
+            </g>
+          ))}
+          
+          {/* X-axis labels */}
+          {performanceHistory.map((d, i) => (
+            <text 
+              key={i}
+              x={getX(i)} 
+              y={chartHeight - 10} 
+              textAnchor="middle" 
+              fontSize="10" 
+              fill="#666"
+            >
+              {formatDate(d.date)}
+            </text>
+          ))}
+          
+          {/* Lines */}
+          {['clinical', 'image', 'fusion'].map(key => (
+            <path
+              key={key}
+              d={createPath(key)}
+              fill="none"
+              stroke={colors[key]}
+              strokeWidth="2"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+          ))}
+          
+          {/* Data points */}
+          {performanceHistory.map((d, i) => 
+            ['clinical', 'image', 'fusion'].map(key => (
+              <circle
+                key={`${i}-${key}`}
+                cx={getX(i)}
+                cy={getY(d[key])}
+                r="4"
+                fill={colors[key]}
+                stroke="white"
+                strokeWidth="2"
+                style={{ cursor: 'pointer', transition: 'r 0.2s ease' }}
+                onMouseEnter={() => setHoveredPoint({ index: i, key, data: d })}
+                onMouseLeave={() => setHoveredPoint(null)}
+              />
+            ))
+          )}
+          
+          {/* Tooltip */}
+          {hoveredPoint && (
+            <g>
+              <rect
+                x={getX(hoveredPoint.index) + 10}
+                y={getY(hoveredPoint.data[hoveredPoint.key]) - 30}
+                width="120"
+                height="50"
+                fill="rgba(0,0,0,0.8)"
+                rx="4"
+              />
+              <text
+                x={getX(hoveredPoint.index) + 15}
+                y={getY(hoveredPoint.data[hoveredPoint.key]) - 15}
+                fill="white"
+                fontSize="10"
+              >
+                {hoveredPoint.data.date}
+              </text>
+              <text
+                x={getX(hoveredPoint.index) + 15}
+                y={getY(hoveredPoint.data[hoveredPoint.key]) - 5}
+                fill="white"
+                fontSize="10"
+                fontWeight="bold"
+              >
+                {hoveredPoint.key}: {(hoveredPoint.data[hoveredPoint.key] * 100).toFixed(1)}%
+              </text>
+            </g>
+          )}
+        </svg>
+      </div>
+      
+      <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+        {Object.entries(colors).map(([key, color]) => (
+          <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', color: '#666' }}>
+            <span 
+              style={{ 
+                width: '12px', 
+                height: '12px', 
+                backgroundColor: color, 
+                borderRadius: '2px' 
+              }}
+            ></span>
+            <span style={{ fontWeight: '500' }}>
+              {key.charAt(0).toUpperCase() + key.slice(1)} Model
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 // Main App Component
 const App = () => {
@@ -758,37 +944,7 @@ const MetricsSection = () => {
       <div className="chart-section">
         <h3>Performance Trends</h3>
         <div className="chart-container">
-          <div className="chart-placeholder">
-            <div className="chart-header">
-              <h4>Model Accuracy Over Time</h4>
-            </div>
-            <div className="trend-lines">
-              {performanceHistory.map((data, idx) => (
-                <div key={idx} className="trend-point" style={{ left: `${(idx / (performanceHistory.length - 1)) * 100}%` }}>
-                  <div className="trend-tooltip">
-                    <div>{data.date}</div>
-                    <div>Clinical: {(data.clinical * 100).toFixed(1)}%</div>
-                    <div>Image: {(data.image * 100).toFixed(1)}%</div>
-                    <div>Fusion: {(data.fusion * 100).toFixed(1)}%</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="chart-legend">
-              <div className="legend-item">
-                <span className="legend-color clinical"></span>
-                <span>Clinical Model</span>
-              </div>
-              <div className="legend-item">
-                <span className="legend-color image"></span>
-                <span>Image Model</span>
-              </div>
-              <div className="legend-item">
-                <span className="legend-color fusion"></span>
-                <span>Fusion Model</span>
-              </div>
-            </div>
-          </div>
+          <PerformanceChart performanceHistory={performanceHistory} />
         </div>
       </div>
 
@@ -905,16 +1061,16 @@ const Footer = () => {
   return (
     <footer className="app-footer">
       <div className="footer-content">
-        <div className="footer-section">
-          <h4>Diabetic Retinopathy Detection</h4>
-          <p>AI-powered medical analysis system</p>
-        </div>
-     
-        <div className="footer-section">
-          <p className="copyright">© 2025 DR Detection System by 💗 Dumindu Thushahn</p>
-          <p className="tagline">Built with AI for better healthcare</p>
-        </div>
+      <div className="footer-section">
+        <h4>Diabetic Retinopathy Detection</h4>
+        <p>AI-powered medical analysis system</p>
       </div>
+      
+      <div className="footer-section"> 
+        <p className="copyright">© 2025 DR Detection System by 💗 Dumindu Thushahn</p>
+      </div>
+    </div>
+      
     </footer>
   );
 };
