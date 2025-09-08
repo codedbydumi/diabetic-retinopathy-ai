@@ -357,7 +357,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Dumindu Thushan**
 - Website: [duminduthushan.com](https://duminduthushan.com)
-- Project Link: [https://github.com/yourusername/diabetic-retinopathy-ai](https://github.com/yourusername/diabetic-retinopathy-ai)
+- Project Link: [https://github.com/yourusername/diabetic-retinopathy-ai](https://github.com/codedbydumi/diabetic-retinopathy-ai.git)
 - Live Demo: [https://dr.duminduthushan.com](https://dr.duminduthushan.com)
 
 ---
@@ -365,6 +365,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 <div align="center">
 
 ### 🌟 Star this repository if you find it helpful!
+<h3>🫀 Built with ❤️ by Codedbydumi for Better Healthcare</h3>
 
 [![GitHub stars](https://img.shields.io/github/stars/yourusername/diabetic-retinopathy-ai?style=social)](https://github.com/yourusername/diabetic-retinopathy-ai)
 [![GitHub forks](https://img.shields.io/github/forks/yourusername/diabetic-retinopathy-ai?style=social)](https://github.com/yourusername/diabetic-retinopathy-ai)
