@@ -7,7 +7,12 @@ import { PredictionLoading } from './components/LoadingStates';
 
 // API Configuration
 // In App.js, temporarily use a CORS proxy
-const API_BASE_URL = 'http://5.189.151.50:8003';
+//const API_BASE_URL = 'http://5.189.151.50:8003';
+//axios.defaults.baseURL = API_BASE_URL;
+const API_BASE_URL = process.env.NODE_ENV === 'production' 
+  ? '/api'  // Vercel will proxy this
+  : 'http://localhost:8000';
+
 axios.defaults.baseURL = API_BASE_URL;
 
 // Main App Component
